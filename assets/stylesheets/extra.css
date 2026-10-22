@@ -1,0 +1,21 @@
+/* pq-glue's palette: a deep teal on the light scheme, a light amber on the dark one. */
+:root > * {
+  --md-primary-fg-color: #0b6e6e;
+  --md-primary-fg-color--light: #138a8a;
+  --md-primary-fg-color--dark: #085454;
+  --md-accent-fg-color: #0b6e6e;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #f2b544;
+  --md-primary-fg-color--light: #f6c76c;
+  --md-primary-fg-color--dark: #d99a26;
+  --md-accent-fg-color: #f6c76c;
+}
+
+/* Copying a pycon block copies the code only: the prompts (.gp) and the output (.go)
+   are hidden while the copy button reads the text. */
+[data-md-copying] .gp,
+[data-md-copying] .go {
+  display: none;
+}
