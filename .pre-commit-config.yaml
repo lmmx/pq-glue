@@ -1,7 +1,9 @@
 ci:
   autofix_commit_msg: "chore(pre-commit): autofix run"
   autoupdate_commit_msg: "chore(pre-commit): autoupdate hooks"
-  # skip: [run-just-prepush]
+  # ty resolves the project's dependencies (uv check), and pre-commit.ci runs hooks
+  # without network access: ty runs in CI instead (test.yml, typing)
+  skip: [ty]
 
 default_install_hook_types:
   - pre-commit
@@ -37,4 +39,5 @@ repos:
     hooks:
       - id: debug-statements
       - id: name-tests-test
+        args: [--pytest-test-first]
         exclude: ".*/data/.*"
