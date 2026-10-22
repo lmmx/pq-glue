@@ -19,7 +19,9 @@ nav = [
     { "pq_glue (Python)" = "reference/api/pq_glue.md" },
     { "pq-glue (Rust)" = "reference/rust.md" },
   ] },
-  { "Background" = ["background/history.md"] },
+  { "Background" = [
+    "background/history.md",
+  ] },
   { "Maintainers" = [
     "maintainers/development.md",
     "maintainers/documentation.md",
