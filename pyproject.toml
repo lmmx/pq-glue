@@ -44,7 +44,7 @@ release = true
 strip = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["python/tests"]
 
 [tool.uv]
 # Build Rust code in development mode (faster builds)

@@ -229,7 +229,7 @@ def test_other_schema_rejected(tmp_path, inputs):
     other = tmp_path / "other.parquet"
     pq.write_table(table(0, 10).drop_columns(["n"]), other)
     out = tmp_path / "out.parquet"
-    with pytest.raises(ValueError, match="another schema"):
+    with pytest.raises(ValueError, match="other schema"):
         pq_glue.concat([*inputs, str(other)], out)
     assert not out.exists()
 
