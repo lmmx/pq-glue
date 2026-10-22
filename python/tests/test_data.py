@@ -4,7 +4,7 @@ import polars as pl
 import pq_glue
 import pyarrow as pa
 import pyarrow.parquet as pq
-from conftest import same, table, write
+from .conftest import same, table, write
 
 
 def test_rows_and_data(inputs, tmp_path):

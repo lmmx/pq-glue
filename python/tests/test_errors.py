@@ -3,7 +3,7 @@
 import pq_glue
 import pyarrow.parquet as pq
 import pytest
-from conftest import table
+from .conftest import table
 
 
 def test_other_schema_rejected(tmp_path, inputs):

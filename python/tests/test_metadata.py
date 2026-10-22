@@ -5,7 +5,7 @@ import struct
 import pq_glue
 import pyarrow as pa
 import pyarrow.parquet as pq
-from conftest import float_chunks, row_group_stats, same, write
+from .conftest import float_chunks, row_group_stats, same, write
 
 
 def test_footer_matches_inputs(inputs, tmp_path):
