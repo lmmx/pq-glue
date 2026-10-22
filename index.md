@@ -37,7 +37,7 @@ cargo add pq-glue
 
 The Python package needs Python 3.10 or later and has no Python dependencies.
 
-## What the output keeps
+## Contents of the output file
 
 | part of the file | in the output |
 | --- | --- |
@@ -47,6 +47,6 @@ The Python package needs Python 3.10 or later and has no Python dependencies.
 | schema | the first input's Parquet schema and `ARROW:schema` |
 | column orders | the inputs', so float statistics stay valid |
 
-## How fast
+## Performance
 
 On the claims of 66 Wikidata chunks (555 MB, 9.4 million rows, 93 nested leaf columns), `concat` took 1.1 to 1.5 s and 0.6 s of CPU. Polars took 61 s (238 s of CPU) and pyarrow 56 s. The [benchmarks](<https://github.com/lmmx/pq-glue/tree/master/bench>) can be reproduced with generated files.

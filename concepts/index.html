@@ -918,7 +918,7 @@
 
 
 <h1 id="concepts">Concepts<a class="headerlink" href="#concepts" title="Permanent link">&para;</a></h1>
-<p>A Parquet file is a sequence of row groups followed by a footer. Each row group holds one
+<p>A Parquet file is a sequence of row groups followed by a footer. Each row group has one
 column chunk per leaf column. The footer records the schema and, for every column chunk,
 where it starts, how long it is, its encodings, its compression and its statistics.</p>
 <p>To concatenate files, pq-glue:</p>

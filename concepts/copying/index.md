@@ -16,7 +16,7 @@
 
 Row groups are not merged or split: an output written from files of one small row group each has as many small row groups. Read it with a reader that handles many row groups, or rewrite it once if a few large row groups are needed.
 
-## What the inputs must share
+## Requirements on the inputs
 
 Every input must have the first input's:
 
@@ -24,7 +24,7 @@ Every input must have the first input's:
 - key-value metadata (so `ARROW:schema` describes every row group);
 - column orders (so every row group's statistics follow the same order).
 
-## What `concat` refuses
+## Cases `concat` refuses
 
 `concat` returns an error and writes nothing when:
 

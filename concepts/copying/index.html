@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="What the output file contains, what the inputs must share, and what concat refuses.">
+        <meta name="description" content="The parts of the output file and their sources, the requirements on the inputs, and the cases concat refuses.">
       
       
         <meta name="author" content="Louis Maddox">
@@ -520,10 +520,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-the-inputs-must-share" class="md-nav__link">
+  <a href="#requirements-on-the-inputs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What the inputs must share
+        Requirements on the inputs
       </span>
     </span>
   </a>
@@ -531,10 +531,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-concat-refuses" class="md-nav__link">
+  <a href="#cases-concat-refuses" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What <code>concat</code> refuses
+        Cases <code>concat</code> refuses
       </span>
     </span>
   </a>
@@ -992,10 +992,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-the-inputs-must-share" class="md-nav__link">
+  <a href="#requirements-on-the-inputs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What the inputs must share
+        Requirements on the inputs
       </span>
     </span>
   </a>
@@ -1003,10 +1003,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-concat-refuses" class="md-nav__link">
+  <a href="#cases-concat-refuses" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What <code>concat</code> refuses
+        Cases <code>concat</code> refuses
       </span>
     </span>
   </a>
@@ -1094,14 +1094,14 @@
 <p>Row groups are not merged or split: an output written from files of one small row group
 each has as many small row groups. Read it with a reader that handles many row groups,
 or rewrite it once if a few large row groups are needed.</p>
-<h2 id="what-the-inputs-must-share">What the inputs must share<a class="headerlink" href="#what-the-inputs-must-share" title="Permanent link">&para;</a></h2>
+<h2 id="requirements-on-the-inputs">Requirements on the inputs<a class="headerlink" href="#requirements-on-the-inputs" title="Permanent link">&para;</a></h2>
 <p>Every input must have the first input's:</p>
 <ul>
 <li>Parquet schema (field names, types, repetition and logical types);</li>
 <li>key-value metadata (so <code>ARROW:schema</code> describes every row group);</li>
 <li>column orders (so every row group's statistics follow the same order).</li>
 </ul>
-<h2 id="what-concat-refuses">What <code>concat</code> refuses<a class="headerlink" href="#what-concat-refuses" title="Permanent link">&para;</a></h2>
+<h2 id="cases-concat-refuses">Cases <code>concat</code> refuses<a class="headerlink" href="#cases-concat-refuses" title="Permanent link">&para;</a></h2>
 <p><code>concat</code> returns an error and writes nothing when:</p>
 <table>
 <thead>

@@ -1,6 +1,6 @@
 # Concepts
 
-A Parquet file is a sequence of row groups followed by a footer. Each row group holds one column chunk per leaf column. The footer records the schema and, for every column chunk, where it starts, how long it is, its encodings, its compression and its statistics.
+A Parquet file is a sequence of row groups followed by a footer. Each row group has one column chunk per leaf column. The footer records the schema and, for every column chunk, where it starts, how long it is, its encodings, its compression and its statistics.
 
 To concatenate files, pq-glue:
 
