@@ -1,5 +1,5 @@
-from os import PathLike
 from collections.abc import Sequence
+from os import PathLike
 
 __version__: str
 
