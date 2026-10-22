@@ -158,7 +158,7 @@ version of a page of https://lmmx.github.io/pq-glue/.
 [project.plugins.llmstxt.sections]
 "Concepts" = [
   { "concepts/index.md" = "How pq-glue concatenates Parquet files: row groups are copied as bytes, and only the footer is new." },
-  { "concepts/copying.md" = "What the output file contains, what the inputs must share, and what concat refuses." },
+  { "concepts/copying.md" = "The parts of the output file and their sources, the requirements on the inputs, and the cases concat refuses." },
   { "concepts/column-orders.md" = "Why pq-glue rewrites the footer's column orders, so that copied float statistics stay readable." },
 ]
 "Get started" = [

@@ -87,7 +87,7 @@ a declaration of another. Files written by pyarrow, for example, use the type-de
 order. Arrow C++ (pyarrow) then ignores the min/max of those float columns, because IEEE
 754 total order also requires NaN counts that the copied statistics do not have.
 
-pq-glue keeps the inputs' column orders instead. After parquet-rs writes the footer,
+pq-glue writes the inputs' column orders instead. After parquet-rs writes the footer,
 pq-glue rewrites the footer's `column_orders` list in place:
 
 - **Same length:** the two encodings are both 3 bytes, so no offsets or lengths change.
