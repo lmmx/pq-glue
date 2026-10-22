@@ -1,14 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="pq-glue: two halves, indigo and amber, joined into one ring">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 128" role="img" aria-label="pq-glue: two blocks, indigo and amber, joined in order into one">
   <defs>
     <linearGradient id="indigo" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7b74f0"/>
-      <stop offset="1" stop-color="#2f2a8f"/>
+      <stop offset="0" stop-color="#8b7cff"/>
+      <stop offset="1" stop-color="#4338ca"/>
     </linearGradient>
-    <linearGradient id="amber" x1="1" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#e48a2e"/>
-      <stop offset="1" stop-color="#f7cf6e"/>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#f08a24"/>
     </linearGradient>
+    <clipPath id="whole">
+      <rect x="84" y="8" width="68" height="112" rx="22"/>
+    </clipPath>
   </defs>
-  <path d="M28.20 75.47 A 52 52 0 0 1 131.80 75.47" stroke="url(#indigo)" stroke-width="26" fill="none" stroke-linecap="butt"/>
-  <path d="M131.80 84.53 A 52 52 0 0 1 28.20 84.53" stroke="url(#amber)" stroke-width="26" fill="none" stroke-linecap="butt"/>
+  <!-- the inputs -->
+  <rect x="8" y="8" width="52" height="52" rx="16" fill="url(#indigo)" opacity="0.55"/>
+  <rect x="8" y="68" width="52" height="52" rx="16" fill="url(#amber)" opacity="0.55"/>
+  <!-- the output: both, in order, meeting at a seam -->
+  <g clip-path="url(#whole)">
+    <rect x="84" y="8" width="68" height="57" fill="url(#indigo)"/>
+    <rect x="84" y="63" width="68" height="57" fill="url(#amber)"/>
+  </g>
 </svg>
