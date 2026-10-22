@@ -93,7 +93,7 @@ def write(tmp_path, i: int, rows: int, **kw) -> str:
 
 def row_group_stats(paths):
     """Each row group's columns' statistics, as pyarrow reads them (NaN-safe tuples)."""
-    out = []
+    out: list[tuple] = []
     for path in paths:
         md = pq.read_metadata(path)
         for g in range(md.num_row_groups):

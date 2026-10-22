@@ -1,0 +1,87 @@
+name: Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Tests
+        run: cargo test
+
+  get-python-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.get-versions.outputs.versions }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Get Python versions
+        id: get-versions
+        run: |
+          MIN_VERSION=$(grep -oP 'requires-python\s*=\s*">=\K[0-9]+(\.[0-9]+)+' pyproject.toml)
+          VERSIONS=$(uv python list --python-preference only-managed 2>/dev/null |
+            grep -oP 'cpython-\K[0-9]+\.[0-9]+(?=\.[0-9]+-[a-z])' |
+            sort -Vu |
+            awk -v min="$MIN_VERSION" '
+              BEGIN { ok = 0 }
+              $0 == min { ok = 1 }
+              ok { print }
+            ' |
+            jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
+
+  python:
+    needs: get-python-versions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJson(needs.get-python-versions.outputs.versions) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install the package and its test dependencies
+        run: uv sync --python ${{ matrix.python-version }} --group test
+
+      - name: Run tests
+        run: uv run --python ${{ matrix.python-version }} pytest
+
+  typing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: ty
+        run: uv run --group typing ty check

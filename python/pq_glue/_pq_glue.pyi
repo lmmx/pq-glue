@@ -1,3 +1,5 @@
+"""The compiled extension module (src/python.rs)."""
+
 from collections.abc import Sequence
 from os import PathLike
 

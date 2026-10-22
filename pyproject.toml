@@ -49,12 +49,16 @@ testpaths = ["python/tests"]
 [tool.uv]
 # Build Rust code in development mode (faster builds)
 config-settings = { build-args = "--profile=dev" }
-default-groups = ["build", "dev", "test"]
+default-groups = ["build", "dev", "test", "typing"]
 
 [dependency-groups]
 build = ["maturin>=1.15.0", "patchelf>=0.19.1.0"]
 dev = ["pdbpp>=0.11.7"]
 test = ["polars>=1.30", "pyarrow>=20", "pytest>=8.4.1"]
+typing = ["ty>=0.0.91"]
+
+[tool.ty.src]
+include = ["python"]
 
 [tool.ruff.lint]
 ignore = ["D401"]

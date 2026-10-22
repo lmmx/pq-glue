@@ -10,7 +10,7 @@ ruff-fmt:
 # Type checking
 ty *args:
    #!/usr/bin/env bash
-   ty check python --exit-zero {{args}} 2> >(grep -v "WARN ty is pre-release software" >&2)
+   ty check --exit-zero {{args}} 2> >(grep -v "WARN ty is pre-release software" >&2)
 
 t:
    just ty --output-format=concise
