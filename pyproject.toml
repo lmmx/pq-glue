@@ -1,0 +1,64 @@
+[build-system]
+build-backend = "maturin"
+requires = ["maturin>=1.0,<2.0", "patchelf>=0.14"]
+
+[project]
+authors = [{ email = "louismmx@gmail.com", name = "Louis Maddox" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python",
+  "Programming Language :: Rust",
+]
+dependencies = []
+description = "Glue Parquet files together by copying their encoded row groups, without decoding them"
+keywords = ["arrow", "concatenate", "parquet"]
+license = "MIT"
+license-files = ["LICENSE"]
+name = "pq-glue"
+readme = "README.md"
+requires-python = ">=3.10"
+version = "0.1.0"
+
+[project.urls]
+Documentation = "https://lmmx.github.io/pq-glue/"
+Homepage = "https://github.com/lmmx/pq-glue"
+Issues = "https://github.com/lmmx/pq-glue/issues"
+Repository = "https://github.com/lmmx/pq-glue.git"
+
+[tool.maturin]
+features = ["python"]
+module-name = "pq_glue._pq_glue"
+python-source = "python"
+release = true
+strip = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+# Build Rust code in development mode (faster builds)
+config-settings = { build-args = "--profile=dev" }
+default-groups = ["build", "dev", "test"]
+
+[dependency-groups]
+build = ["maturin>=1.15.0", "patchelf>=0.19.1.0"]
+dev = ["pdbpp>=0.11.7"]
+test = ["polars>=1.30", "pyarrow>=20", "pytest>=8.4.1"]
+
+[tool.ruff.lint]
+ignore = ["D401"]
+select = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

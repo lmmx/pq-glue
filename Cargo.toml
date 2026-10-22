@@ -1,0 +1,41 @@
+[package]
+authors = ["Louis Maddox <louismmx@gmail.com>"]
+categories = ["encoding", "filesystem"]
+description = "Glue Parquet files together by copying their encoded row groups, without decoding them"
+edition = "2021"
+keywords = ["arrow", "concatenate", "parquet"]
+license = "MIT"
+name = "pq-glue"
+readme = "README.md"
+repository = "https://github.com/lmmx/pq-glue"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "pq_glue"
+
+[dependencies]
+# No codecs: column chunks are copied as they are, never decompressed
+parquet = { default-features = false, version = "60.0.0" }
+pyo3 = { features = ["abi3-py310"], optional = true, version = "0.29" }
+
+[features]
+default = []
+# The Python extension module (built by maturin, see pyproject.toml)
+python = ["dep:pyo3"]
+
+[profile.dev]
+codegen-units = 256
+debug = false
+lto = false
+opt-level = 0
+panic = "unwind"
+strip = "debuginfo"
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "thin"
+opt-level = 2
+panic = "unwind"
+strip = "symbols"
