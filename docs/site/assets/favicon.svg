@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="38 -37 124 142"><defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 -48 160 150"><defs>
 <linearGradient id="ti" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9c1ff"/><stop offset="1" stop-color="#8f84ff"/></linearGradient>
 <linearGradient id="li" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6f62f4"/><stop offset="1" stop-color="#4a3fd0"/></linearGradient>
 <linearGradient id="ri" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4236bd"/><stop offset="1" stop-color="#2a2190"/></linearGradient>
@@ -8,54 +8,73 @@
 <radialGradient id="amb" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#20223a" stop-opacity="0.35"/><stop offset="1" stop-color="#20223a" stop-opacity="0"/></radialGradient>
 <pattern id="hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="3" fill="#2a2c3c"/><line x1="0" y1="0" x2="0" y2="3" stroke="#ffffff" stroke-width="0.6" stroke-opacity="0.55"/></pattern>
 </defs>
-<line x1="100.00" y1="34.00" x2="100.00" y2="-30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="100.00" y1="34.00" x2="44.57" y2="66.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="100.00" y1="34.00" x2="155.43" y2="66.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="100.00" y1="-30.00" x2="44.57" y2="2.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="100.00" y1="-30.00" x2="155.43" y2="2.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="44.57" y1="66.00" x2="44.57" y2="2.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="44.57" y1="66.00" x2="100.00" y2="98.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="44.57" y1="2.00" x2="100.00" y2="34.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="155.43" y1="66.00" x2="155.43" y2="2.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="155.43" y1="66.00" x2="100.00" y2="98.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="155.43" y1="2.00" x2="100.00" y2="34.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="100.00" y1="98.00" x2="100.00" y2="34.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
-<line x1="113.86" y1="42.00" x2="58.43" y2="74.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
-<line x1="86.14" y1="42.00" x2="141.57" y2="74.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
-<line x1="100.00" y1="18.00" x2="155.43" y2="50.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="100.00" y1="18.00" x2="44.57" y2="50.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="113.86" y1="42.00" x2="113.86" y2="-22.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="86.14" y1="42.00" x2="86.14" y2="-22.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="127.71" y1="50.00" x2="72.29" y2="82.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
-<line x1="72.29" y1="50.00" x2="127.71" y2="82.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
-<line x1="100.00" y1="2.00" x2="155.43" y2="34.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="100.00" y1="2.00" x2="44.57" y2="34.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="127.71" y1="50.00" x2="127.71" y2="-14.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="72.29" y1="50.00" x2="72.29" y2="-14.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="141.57" y1="58.00" x2="86.14" y2="90.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
-<line x1="58.43" y1="58.00" x2="113.86" y2="90.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
-<line x1="100.00" y1="-14.00" x2="155.43" y2="18.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="100.00" y1="-14.00" x2="44.57" y2="18.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="141.57" y1="58.00" x2="141.57" y2="-6.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="58.43" y1="58.00" x2="58.43" y2="-6.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
-<line x1="49.77" y1="-1.00" x2="100.00" y2="28.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6" stroke-dasharray="1 2.2"/>
-<line x1="150.23" y1="23.00" x2="100.00" y2="52.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6" stroke-dasharray="1 2.2"/>
-<ellipse cx="100.0" cy="66.0" rx="28" ry="8" fill="url(#amb)"/>
-<polygon points="127.71,40.00 100.00,56.00 100.00,76.00 127.71,60.00" fill="url(#ra)" opacity="1.0"/>
-<polygon points="72.29,40.00 100.00,56.00 100.00,76.00 72.29,60.00" fill="url(#la)" opacity="1.0"/>
-<polygon points="100.00,24.00 127.71,40.00 100.00,56.00 72.29,40.00" fill="url(#ta)" opacity="1.0"/>
-<polyline points="72.29,40.00 100.00,24.00 127.71,40.00" fill="none" stroke="#ffffff" stroke-opacity="0.75" stroke-width="0.6"/>
-<polyline points="72.29,40.00 100.00,56.00 127.71,40.00" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="0.4"/>
-<polygon points="127.71,19.00 100.00,35.00 100.00,55.00 127.71,39.00" fill="url(#ri)" opacity="1.0"/>
-<polygon points="72.29,19.00 100.00,35.00 100.00,55.00 72.29,39.00" fill="url(#li)" opacity="1.0"/>
-<polygon points="100.00,3.00 127.71,19.00 100.00,35.00 72.29,19.00" fill="url(#ti)" opacity="1.0"/>
-<polyline points="72.29,19.00 100.00,3.00 127.71,19.00" fill="none" stroke="#ffffff" stroke-opacity="0.75" stroke-width="0.6"/>
-<polyline points="72.29,19.00 100.00,35.00 127.71,19.00" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="0.4"/>
-<polyline points="72.29,39.00 100.00,55.00 127.71,39.00" fill="none" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.9"/>
-<circle cx="100.00" cy="-30.00" r="2.38" fill="none" stroke="#8b90ab" stroke-width="0.4" stroke-opacity="0.6"/>
-<line x1="96.60" y1="-30.00" x2="103.40" y2="-30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
-<line x1="100.00" y1="-33.40" x2="100.00" y2="-26.60" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
-<circle cx="100.00" cy="98.00" r="2.38" fill="none" stroke="#8b90ab" stroke-width="0.4" stroke-opacity="0.6"/>
-<line x1="96.60" y1="98.00" x2="103.40" y2="98.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
-<line x1="100.00" y1="94.60" x2="100.00" y2="101.40" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
+<line x1="100.00" y1="30.00" x2="100.00" y2="-30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="100.00" y1="30.00" x2="48.04" y2="60.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="100.00" y1="30.00" x2="151.96" y2="60.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="100.00" y1="-30.00" x2="48.04" y2="0.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="100.00" y1="-30.00" x2="151.96" y2="0.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="48.04" y1="60.00" x2="48.04" y2="0.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="48.04" y1="60.00" x2="100.00" y2="90.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="48.04" y1="0.00" x2="100.00" y2="30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="151.96" y1="60.00" x2="151.96" y2="0.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="151.96" y1="60.00" x2="100.00" y2="90.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="151.96" y1="0.00" x2="100.00" y2="30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="100.00" y1="90.00" x2="100.00" y2="30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.5"/>
+<line x1="112.99" y1="37.50" x2="61.03" y2="67.50" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
+<line x1="87.01" y1="37.50" x2="138.97" y2="67.50" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
+<line x1="100.00" y1="15.00" x2="151.96" y2="45.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
+<line x1="100.00" y1="15.00" x2="48.04" y2="45.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
+<line x1="125.98" y1="45.00" x2="74.02" y2="75.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
+<line x1="74.02" y1="45.00" x2="125.98" y2="75.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
+<line x1="100.00" y1="0.00" x2="151.96" y2="30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
+<line x1="100.00" y1="0.00" x2="48.04" y2="30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
+<line x1="138.97" y1="52.50" x2="87.01" y2="82.50" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
+<line x1="61.03" y1="52.50" x2="112.99" y2="82.50" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.16"/>
+<line x1="100.00" y1="-15.00" x2="151.96" y2="15.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
+<line x1="100.00" y1="-15.00" x2="48.04" y2="15.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.1"/>
+<ellipse cx="100.0" cy="60.0" rx="30" ry="8" fill="url(#amb)"/>
+<polygon points="93.94,-0.50 66.23,15.50 66.23,18.50 93.94,2.50" fill="url(#ri)" opacity="0.1"/>
+<polygon points="38.51,-0.50 66.23,15.50 66.23,18.50 38.51,2.50" fill="url(#li)" opacity="0.1"/>
+<polygon points="66.23,-16.50 93.94,-0.50 66.23,15.50 38.51,-0.50" fill="url(#ti)" opacity="0.1"/>
+<polygon points="105.20,6.00 77.48,22.00 77.48,25.00 105.20,9.00" fill="url(#ri)" opacity="0.17"/>
+<polygon points="49.77,6.00 77.48,22.00 77.48,25.00 49.77,9.00" fill="url(#li)" opacity="0.17"/>
+<polygon points="77.48,-10.00 105.20,6.00 77.48,22.00 49.77,6.00" fill="url(#ti)" opacity="0.17"/>
+<polygon points="116.45,12.50 88.74,28.50 88.74,31.50 116.45,15.50" fill="url(#ri)" opacity="0.24000000000000002"/>
+<polygon points="61.03,12.50 88.74,28.50 88.74,31.50 61.03,15.50" fill="url(#li)" opacity="0.24000000000000002"/>
+<polygon points="88.74,-3.50 116.45,12.50 88.74,28.50 61.03,12.50" fill="url(#ti)" opacity="0.24000000000000002"/>
+<polygon points="161.49,23.50 133.77,39.50 133.77,42.50 161.49,26.50" fill="url(#ra)" opacity="0.1"/>
+<polygon points="106.06,23.50 133.77,39.50 133.77,42.50 106.06,26.50" fill="url(#la)" opacity="0.1"/>
+<polygon points="133.77,7.50 161.49,23.50 133.77,39.50 106.06,23.50" fill="url(#ta)" opacity="0.1"/>
+<polygon points="150.23,30.00 122.52,46.00 122.52,49.00 150.23,33.00" fill="url(#ra)" opacity="0.17"/>
+<polygon points="94.80,30.00 122.52,46.00 122.52,49.00 94.80,33.00" fill="url(#la)" opacity="0.17"/>
+<polygon points="122.52,14.00 150.23,30.00 122.52,46.00 94.80,30.00" fill="url(#ta)" opacity="0.17"/>
+<polygon points="138.97,36.50 111.26,52.50 111.26,55.50 138.97,39.50" fill="url(#ra)" opacity="0.24000000000000002"/>
+<polygon points="83.55,36.50 111.26,52.50 111.26,55.50 83.55,39.50" fill="url(#la)" opacity="0.24000000000000002"/>
+<polygon points="111.26,20.50 138.97,36.50 111.26,52.50 83.55,36.50" fill="url(#ta)" opacity="0.24000000000000002"/>
+<polygon points="127.71,50.00 100.00,66.00 100.00,70.00 127.71,54.00" fill="url(#ra)" opacity="0.95"/>
+<polygon points="72.29,50.00 100.00,66.00 100.00,70.00 72.29,54.00" fill="url(#la)" opacity="0.95"/>
+<polygon points="100.00,34.00 127.71,50.00 100.00,66.00 72.29,50.00" fill="url(#ta)" opacity="0.95"/>
+<polyline points="72.29,50.00 100.00,34.00 127.71,50.00" fill="none" stroke="#ffffff" stroke-opacity="0.71" stroke-width="0.6"/>
+<polyline points="72.29,50.00 100.00,66.00 127.71,50.00" fill="none" stroke="#ffffff" stroke-opacity="0.33" stroke-width="0.4"/>
+<polygon points="127.71,38.00 100.00,54.00 100.00,58.00 127.71,42.00" fill="url(#ra)" opacity="0.95"/>
+<polygon points="72.29,38.00 100.00,54.00 100.00,58.00 72.29,42.00" fill="url(#la)" opacity="0.95"/>
+<polygon points="100.00,22.00 127.71,38.00 100.00,54.00 72.29,38.00" fill="url(#ta)" opacity="0.95"/>
+<polyline points="72.29,38.00 100.00,22.00 127.71,38.00" fill="none" stroke="#ffffff" stroke-opacity="0.71" stroke-width="0.6"/>
+<polyline points="72.29,38.00 100.00,54.00 127.71,38.00" fill="none" stroke="#ffffff" stroke-opacity="0.33" stroke-width="0.4"/>
+<polygon points="127.71,26.00 100.00,42.00 100.00,46.00 127.71,30.00" fill="url(#ri)" opacity="0.95"/>
+<polygon points="72.29,26.00 100.00,42.00 100.00,46.00 72.29,30.00" fill="url(#li)" opacity="0.95"/>
+<polygon points="100.00,10.00 127.71,26.00 100.00,42.00 72.29,26.00" fill="url(#ti)" opacity="0.95"/>
+<polyline points="72.29,26.00 100.00,10.00 127.71,26.00" fill="none" stroke="#ffffff" stroke-opacity="0.71" stroke-width="0.6"/>
+<polyline points="72.29,26.00 100.00,42.00 127.71,26.00" fill="none" stroke="#ffffff" stroke-opacity="0.33" stroke-width="0.4"/>
+<polygon points="127.71,14.00 100.00,30.00 100.00,34.00 127.71,18.00" fill="url(#ri)" opacity="0.95"/>
+<polygon points="72.29,14.00 100.00,30.00 100.00,34.00 72.29,18.00" fill="url(#li)" opacity="0.95"/>
+<polygon points="100.00,-2.00 127.71,14.00 100.00,30.00 72.29,14.00" fill="url(#ti)" opacity="0.95"/>
+<polyline points="72.29,14.00 100.00,-2.00 127.71,14.00" fill="none" stroke="#ffffff" stroke-opacity="0.71" stroke-width="0.6"/>
+<polyline points="72.29,14.00 100.00,30.00 127.71,14.00" fill="none" stroke="#ffffff" stroke-opacity="0.33" stroke-width="0.4"/>
+<circle cx="100.00" cy="-30.00" r="2.24" fill="none" stroke="#8b90ab" stroke-width="0.4" stroke-opacity="0.6"/>
+<line x1="96.80" y1="-30.00" x2="103.20" y2="-30.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
+<line x1="100.00" y1="-33.20" x2="100.00" y2="-26.80" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
+<circle cx="100.00" cy="90.00" r="2.24" fill="none" stroke="#8b90ab" stroke-width="0.4" stroke-opacity="0.6"/>
+<line x1="96.80" y1="90.00" x2="103.20" y2="90.00" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
+<line x1="100.00" y1="86.80" x2="100.00" y2="93.20" stroke="#8b90ab" stroke-width="0.45" stroke-opacity="0.6"/>
 </svg>

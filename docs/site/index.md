@@ -4,7 +4,7 @@ description: "Concatenate Parquet files without decoding them."
 
 <div class="home-hero" markdown>
 
-![The pq-glue logo: an amber block and an indigo block seated together, in order, inside a hairline lattice cube](assets/logo.svg){ .home-hero-logo width="180" }
+![The pq-glue logo: row-group planes arriving from two axes settle into one ordered stack inside a hairline lattice cube](assets/logo.svg){ .home-hero-logo width="180" }
 
 <div class="home-hero-text" markdown>
 
