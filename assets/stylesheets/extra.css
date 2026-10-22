@@ -1,9 +1,9 @@
-/* pq-glue's palette: a deep teal on the light scheme, a light amber on the dark one. */
+/* pq-glue's palette, from the logo: its indigo on the light scheme, its amber on the dark one. */
 :root > * {
-  --md-primary-fg-color: #0b6e6e;
-  --md-primary-fg-color--light: #138a8a;
-  --md-primary-fg-color--dark: #085454;
-  --md-accent-fg-color: #0b6e6e;
+  --md-primary-fg-color: #3d36b0;
+  --md-primary-fg-color--light: #5a52d6;
+  --md-primary-fg-color--dark: #2f2a8f;
+  --md-accent-fg-color: #3d36b0;
 }
 
 [data-md-color-scheme="slate"] {
