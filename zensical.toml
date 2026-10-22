@@ -107,7 +107,7 @@ features = [
 font.code = "IBM Plex Mono"
 font.text = "IBM Plex Sans"
 language = "en"
-logo = "assets/favicon.svg"
+logo = "assets/logo.svg"
 variant = "modern"
 
 [project.theme.icon]

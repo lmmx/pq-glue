@@ -2,27 +2,101 @@
 description: "Concatenate Parquet files without decoding them."
 ---
 
+<div class="home-hero" markdown>
+
+![The pq-glue logo: the row groups of two Parquet files, joined in order into one file](assets/logo.svg){ .home-hero-logo width="180" }
+
+<div class="home-hero-text" markdown>
+
 # pq-glue
 
+<p class="home-hero-tagline">Concatenate Parquet files without decoding them.</p>
+
+</div>
+
+</div>
+
 pq-glue copies the row groups of several Parquet files into one new file. Each column
-chunk is copied as bytes: it is not decompressed, decoded or re-encoded. The time taken
-depends on the number of bytes copied, not on the number of columns or how deeply they
-are nested.
+chunk is copied as bytes: it is not decompressed, decoded or re-encoded. The time it
+takes depends on the number of bytes copied, not on the number of columns or how deeply
+they are nested.
 
-```python notest
-import pq_glue
+<!--
+```python
+import pyarrow as pa
+import pyarrow.parquet as pq
 
-rows = pq_glue.concat(["a.parquet", "b.parquet"], "ab.parquet")
+claims = pa.schema(
+    [
+        ("id", pa.large_string()),
+        ("property", pa.large_string()),
+        ("qualifiers", pa.large_list(pa.struct([("property", pa.large_string()), ("amount", pa.float64())]))),
+    ]
+)
+pq.write_table(
+    pa.table(
+        {"id": ["Q1", "Q2"], "property": ["P31", "P279"], "qualifiers": [[{"property": "P580", "amount": 1.5}], []]},
+        schema=claims,
+    ),
+    "part-0.parquet",
+)
+pq.write_table(
+    pa.table({"id": ["Q3"], "property": ["P31"], "qualifiers": [None]}, schema=claims),
+    "part-1.parquet",
+)
+```
+-->
+
+```pycon
+>>> import pq_glue
+>>> pq_glue.concat(["part-0.parquet", "part-1.parquet"], "claims.parquet")
+3
+>>> import pyarrow.parquet as pq
+>>> pq.read_table("claims.parquet").column("id").to_pylist()
+['Q1', 'Q2', 'Q3']
+>>> pq.ParquetFile("claims.parquet").metadata.num_row_groups
+2
 ```
 
-The inputs must share one Parquet schema. The output keeps the inputs' encodings,
-compression, statistics, page indexes and bloom filters, and the first input's Arrow
-schema (`ARROW:schema`).
+- [`concat`][pq_glue.concat] returns the number of rows written.
+- The output has each input's row groups, in input order: here one from each file.
+- The inputs must have one Parquet schema. Files that differ are refused, and nothing
+  is written.
 
-On 66 files of nested Wikidata claims (555 MB), `concat` took 1.1 to 1.5 s, against 61 s
-with Polars and 56 s with pyarrow ([benchmarks](https://github.com/lmmx/pq-glue/tree/master/bench)).
+## Where to go
 
-- [Installation](getting-started/installation.md)
-- [Quickstart](getting-started/quickstart.md)
-- [What is copied](concepts/copying.md)
-- [API reference](reference/index.md)
+- [Quickstart](getting-started/quickstart.md): write two files, concatenate them, and
+  see what is refused.
+- [What is copied](concepts/copying.md): every part of the output file, and where it
+  comes from.
+- [Column orders](concepts/column-orders.md): why the copied float statistics need a
+  change to the footer, and how pq-glue makes it.
+
+## Install
+
+```sh
+pip install pq-glue
+```
+
+```sh
+cargo add pq-glue
+```
+
+The Python package needs Python 3.10 or later and has no Python dependencies.
+
+## What the output keeps
+
+| part of the file | in the output |
+|---|---|
+| column chunks | copied as bytes: the same pages, encodings and compression |
+| statistics | each row group's min, max and null counts, readable by pyarrow |
+| page indexes, bloom filters | copied where the inputs have them |
+| schema | the first input's Parquet schema and `ARROW:schema` |
+| column orders | the inputs', so float statistics stay valid |
+
+## How fast
+
+On the claims of 66 Wikidata chunks (555 MB, 9.4 million rows, 93 nested leaf columns),
+`concat` took 1.1 to 1.5 s and 0.6 s of CPU. Polars took 61 s (238 s of CPU) and pyarrow
+56 s. The [benchmarks](https://github.com/lmmx/pq-glue/tree/master/bench) can be
+reproduced with generated files.
