@@ -4,7 +4,7 @@ description: "Concatenate Parquet files without decoding them."
 
 <div class="home-hero" markdown>
 
-![The pq-glue logo: the row groups of two Parquet files, joined in order into one file](assets/logo.svg){ .home-hero-logo width="180" }
+![The pq-glue logo: a ring made of two halves, indigo and amber, joined at two seams](assets/logo.svg){ .home-hero-logo width="180" }
 
 <div class="home-hero-text" markdown>
 
