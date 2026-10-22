@@ -19,3 +19,53 @@
 [data-md-copying] .go {
   display: none;
 }
+
+/* The home page's hero: the logo beside the name and the tagline, stacked on narrow screens. */
+.md-typeset .home-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.6rem;
+  margin: 1.2rem 0 2rem;
+}
+.md-typeset .home-hero-logo {
+  flex: none;
+}
+.md-typeset .home-hero h1 {
+  margin: 0;
+  font-size: 2.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--md-default-fg-color);
+}
+/* the heading's permalink would pull the centred name off centre */
+.md-typeset .home-hero h1 .headerlink {
+  display: none;
+}
+.md-typeset .home-hero-tagline {
+  margin: 0.3rem 0 0;
+  max-width: 22rem;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--md-default-fg-color--light);
+}
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .home-hero {
+    clear: both;
+    flex-direction: column;
+    gap: 0.8rem;
+    text-align: center;
+  }
+  .md-typeset .home-hero-tagline {
+    margin: 0.3rem auto 0;
+  }
+}
+
+/* Tables of what is kept and what is refused: full width, first column unbroken */
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+}
+.md-typeset table:not([class]) td:first-child {
+  white-space: nowrap;
+}

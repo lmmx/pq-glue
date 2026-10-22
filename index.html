@@ -106,7 +106,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="" title="pq-glue" class="md-header__button md-logo" aria-label="pq-glue" data-md-component="logo">
       
-  <img src="./assets/favicon.svg" alt="pq-glue">
+  <img src="./assets/logo.svg" alt="pq-glue">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -214,7 +214,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="" title="pq-glue" class="md-nav__button md-logo" aria-label="pq-glue" data-md-component="logo">
       
-  <img src="./assets/favicon.svg" alt="pq-glue">
+  <img src="./assets/logo.svg" alt="pq-glue">
 
     </a>
     pq-glue
@@ -250,6 +250,23 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="" class="md-nav__link md-nav__link--active">
         
   
@@ -265,6 +282,70 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where to go
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Install
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-output-keeps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the output keeps
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-fast" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How fast
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -883,6 +964,11 @@
                       
                     
                     
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
                   
                   <div class="md-sidebar__inner">
                     
@@ -894,6 +980,58 @@
   
     
   
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where to go
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Install
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-output-keeps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the output keeps
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-fast" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How fast
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -923,26 +1061,108 @@
   
 
 
+<div class="home-hero">
+<p><img alt="The pq-glue logo: the row groups of two Parquet files, joined in order into one file" class="home-hero-logo" src="assets/logo.svg" width="180" /></p>
+<div class="home-hero-text">
 <h1 id="pq-glue">pq-glue<a class="headerlink" href="#pq-glue" title="Permanent link">&para;</a></h1>
+<p class="home-hero-tagline">Concatenate Parquet files without decoding them.</p>
+</div>
+</div>
 <p>pq-glue copies the row groups of several Parquet files into one new file. Each column
-chunk is copied as bytes: it is not decompressed, decoded or re-encoded. The time taken
-depends on the number of bytes copied, not on the number of columns or how deeply they
-are nested.</p>
-<p>```python notest
-import pq_glue</p>
-<p>rows = pq_glue.concat(["a.parquet", "b.parquet"], "ab.parquet")
-```</p>
-<p>The inputs must share one Parquet schema. The output keeps the inputs' encodings,
-compression, statistics, page indexes and bloom filters, and the first input's Arrow
-schema (<code>ARROW:schema</code>).</p>
-<p>On 66 files of nested Wikidata claims (555 MB), <code>concat</code> took 1.1 to 1.5 s, against 61 s
-with Polars and 56 s with pyarrow (<a href="https://github.com/lmmx/pq-glue/tree/master/bench">benchmarks</a>).</p>
+chunk is copied as bytes: it is not decompressed, decoded or re-encoded. The time it
+takes depends on the number of bytes copied, not on the number of columns or how deeply
+they are nested.</p>
+<!--
+<div class="language-python highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+<span class="n">claims</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">schema</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"id"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">large_string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"property"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">large_string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"qualifiers"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">large_list</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">struct</span><span class="p">([(</span><span class="s2">"property"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">large_string</span><span class="p">()),</span> <span class="p">(</span><span class="s2">"amount"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">())]))),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="n">pq</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span>
+    <span class="n">pa</span><span class="o">.</span><span class="n">table</span><span class="p">(</span>
+        <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"Q1"</span><span class="p">,</span> <span class="s2">"Q2"</span><span class="p">],</span> <span class="s2">"property"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"P31"</span><span class="p">,</span> <span class="s2">"P279"</span><span class="p">],</span> <span class="s2">"qualifiers"</span><span class="p">:</span> <span class="p">[[{</span><span class="s2">"property"</span><span class="p">:</span> <span class="s2">"P580"</span><span class="p">,</span> <span class="s2">"amount"</span><span class="p">:</span> <span class="mf">1.5</span><span class="p">}],</span> <span class="p">[]]},</span>
+        <span class="n">schema</span><span class="o">=</span><span class="n">claims</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="s2">"part-0.parquet"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">pq</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span>
+    <span class="n">pa</span><span class="o">.</span><span class="n">table</span><span class="p">({</span><span class="s2">"id"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"Q3"</span><span class="p">],</span> <span class="s2">"property"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"P31"</span><span class="p">],</span> <span class="s2">"qualifiers"</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">]},</span> <span class="n">schema</span><span class="o">=</span><span class="n">claims</span><span class="p">),</span>
+    <span class="s2">"part-1.parquet"</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+-->
+
+<div class="language-pycon highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pq_glue</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pq_glue</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="s2">"part-0.parquet"</span><span class="p">,</span> <span class="s2">"part-1.parquet"</span><span class="p">],</span> <span class="s2">"claims.parquet"</span><span class="p">)</span>
+<span class="go">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="s2">"claims.parquet"</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s2">"id"</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">()</span>
+<span class="go">['Q1', 'Q2', 'Q3']</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="s2">"claims.parquet"</span><span class="p">)</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">num_row_groups</span>
+<span class="go">2</span>
+</code></pre></div>
 <ul>
-<li><a href="getting-started/installation/">Installation</a></li>
-<li><a href="getting-started/quickstart/">Quickstart</a></li>
-<li><a href="concepts/copying/">What is copied</a></li>
-<li><a href="reference/">API reference</a></li>
+<li><a class="autorefs autorefs-internal" title="            concat" href="reference/api/pq_glue/#pq_glue.concat"><code>concat</code></a> returns the number of rows written.</li>
+<li>The output has each input's row groups, in input order: here one from each file.</li>
+<li>The inputs must have one Parquet schema. Files that differ are refused, and nothing
+  is written.</li>
 </ul>
+<h2 id="where-to-go">Where to go<a class="headerlink" href="#where-to-go" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="getting-started/quickstart/">Quickstart</a>: write two files, concatenate them, and
+  see what is refused.</li>
+<li><a href="concepts/copying/">What is copied</a>: every part of the output file, and where it
+  comes from.</li>
+<li><a href="concepts/column-orders/">Column orders</a>: why the copied float statistics need a
+  change to the footer, and how pq-glue makes it.</li>
+</ul>
+<h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
+<div class="language-sh highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>pq-glue
+</code></pre></div>
+<div class="language-sh highlight"><pre><span></span><code>cargo<span class="w"> </span>add<span class="w"> </span>pq-glue
+</code></pre></div>
+<p>The Python package needs Python 3.10 or later and has no Python dependencies.</p>
+<h2 id="what-the-output-keeps">What the output keeps<a class="headerlink" href="#what-the-output-keeps" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>part of the file</th>
+<th>in the output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>column chunks</td>
+<td>copied as bytes: the same pages, encodings and compression</td>
+</tr>
+<tr>
+<td>statistics</td>
+<td>each row group's min, max and null counts, readable by pyarrow</td>
+</tr>
+<tr>
+<td>page indexes, bloom filters</td>
+<td>copied where the inputs have them</td>
+</tr>
+<tr>
+<td>schema</td>
+<td>the first input's Parquet schema and <code>ARROW:schema</code></td>
+</tr>
+<tr>
+<td>column orders</td>
+<td>the inputs', so float statistics stay valid</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-fast">How fast<a class="headerlink" href="#how-fast" title="Permanent link">&para;</a></h2>
+<p>On the claims of 66 Wikidata chunks (555 MB, 9.4 million rows, 93 nested leaf columns),
+<code>concat</code> took 1.1 to 1.5 s and 0.6 s of CPU. Polars took 61 s (238 s of CPU) and pyarrow
+56 s. The <a href="https://github.com/lmmx/pq-glue/tree/master/bench">benchmarks</a> can be
+reproduced with generated files.</p>
 
 
 
