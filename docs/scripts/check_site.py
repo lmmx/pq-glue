@@ -199,7 +199,9 @@ def check_api(config, site, problems):
         p.feed(html.read_text(errors="replace"))
         ids |= p.ids
     for mod in public:
-        path = src / "__init__.py" if mod == "pq_glue" else src / f"{mod.split('.')[1]}.py"
+        path = (
+            src / "__init__.py" if mod == "pq_glue" else src / f"{mod.split('.')[1]}.py"
+        )
         names, declared = public_names(path)
         if not declared:
             print(

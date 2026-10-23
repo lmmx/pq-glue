@@ -45,23 +45,6 @@ repetition and definition levels to rebuild. pq-glue does neither, so its time d
 only on the bytes copied. It was about 20 times faster than Polars on the flat generated
 files, and about 50 times faster on the claims.
 
-## In a pipeline
-
-wikidata-pq processes Wikidata in chunks and merges each group of chunks' partition
-files before uploading them. On 66 chunks with 6 workers and groups of 22 chunks, merging
-the claims with pq-glue instead of Polars changed the whole run as follows (3 runs each,
-interleaved):
-
-| | Polars | pq-glue |
-|---|---|---|
-| wall | 182.9–185.6 s | 131.7–134.8 s |
-| CPU of the merges | 270–275 s | 46–48 s |
-| peak RSS | 10.0–10.3 GB | 9.3–10.5 GB |
-
-The remaining merge CPU is the other tables, which wikidata-pq still merges with Polars.
-Both runs' outputs have the same rows in the same order, with the same schema, for every
-table and partition key.
-
 ## Checking the outputs
 
 In each benchmark, the first round's outputs must agree before any times are recorded:

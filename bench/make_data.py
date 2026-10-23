@@ -44,21 +44,40 @@ def value(rng: random.Random) -> dict | None:
     kind = rng.choice(["item", "string", "quantity", "coordinate", "time", None])
     if kind is None:
         return None
-    v = {"type": kind, "text": None, "amount": None, "latitude": None, "longitude": None, "time": None}
+    v = {
+        "type": kind,
+        "text": None,
+        "amount": None,
+        "latitude": None,
+        "longitude": None,
+        "time": None,
+    }
     if kind in ("item", "string"):
-        v["text"] = f"Q{rng.randrange(10**8)}" if kind == "item" else "".join(rng.choices("abcdefghij ", k=rng.randrange(4, 40)))
+        v["text"] = (
+            f"Q{rng.randrange(10**8)}"
+            if kind == "item"
+            else "".join(rng.choices("abcdefghij ", k=rng.randrange(4, 40)))
+        )
     elif kind == "quantity":
         v["amount"] = rng.choice([rng.uniform(-1e6, 1e6), 0.0, -0.0, float("nan")])
     elif kind == "coordinate":
         v["latitude"], v["longitude"] = rng.uniform(-90, 90), rng.uniform(-180, 180)
     else:
-        v["time"] = f"+{rng.randrange(1000, 2030)}-{rng.randrange(1, 13):02d}-00T00:00:00Z"
+        v["time"] = (
+            f"+{rng.randrange(1000, 2030)}-{rng.randrange(1, 13):02d}-00T00:00:00Z"
+        )
     return v
 
 
 def snaks(rng: random.Random, n: int) -> list:
     """`n` snaks of a random property with one to three values."""
-    return [{"property": f"P{rng.randrange(9000)}", "value": [value(rng) for _ in range(rng.randrange(1, 4))]} for _ in range(n)]
+    return [
+        {
+            "property": f"P{rng.randrange(9000)}",
+            "value": [value(rng) for _ in range(rng.randrange(1, 4))],
+        }
+        for _ in range(n)
+    ]
 
 
 def table(i: int, rows: int) -> pa.Table:
@@ -70,9 +89,13 @@ def table(i: int, rows: int) -> pa.Table:
         cols["property"].append(f"P{rng.randrange(9000)}")
         cols["rank"].append(rng.choice(["normal", "preferred", "deprecated"]))
         cols["value"].append(value(rng))
-        cols["qualifiers"].append(None if r % 9 == 0 else snaks(rng, rng.choice([0, 0, 1, 2, 3])))
+        cols["qualifiers"].append(
+            None if r % 9 == 0 else snaks(rng, rng.choice([0, 0, 1, 2, 3]))
+        )
         refs = rng.choice([0, 1, 1, 2])
-        cols["references"].append([{"snaks": snaks(rng, rng.randrange(1, 4))} for _ in range(refs)])
+        cols["references"].append(
+            [{"snaks": snaks(rng, rng.randrange(1, 4))} for _ in range(refs)]
+        )
     return pa.table(cols, schema=SCHEMA)
 
 
@@ -86,7 +109,9 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     for i in range(args.files):
         path = args.out / f"part_{i:04d}.parquet"
-        pq.write_table(table(i, args.rows), path, compression="zstd", row_group_size=122_880)
+        pq.write_table(
+            table(i, args.rows), path, compression="zstd", row_group_size=122_880
+        )
         print(f"{path}: {path.stat().st_size / 2**20:.1f} MB", flush=True)
 
 

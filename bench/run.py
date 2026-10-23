@@ -53,21 +53,34 @@ def fingerprint(path: str) -> tuple:
 
     row = pl.struct(pl.all())
     lf = pl.scan_parquet(path).with_row_index("_row")
-    exprs = [pl.len().alias("rows"), row.hash(seed=0).sum().alias("h0"), row.hash(seed=1).sum().alias("h1")]
+    exprs = [
+        pl.len().alias("rows"),
+        row.hash(seed=0).sum().alias("h0"),
+        row.hash(seed=1).sum().alias("h1"),
+    ]
     return lf.select(exprs).collect(engine="streaming").row(0)
 
 
 def run(method: str, src: list[str], dst: str) -> dict:
     """One method in a fresh process."""
     code = CHILD.format(code=METHODS[method])
-    out = subprocess.run([sys.executable, "-c", code, json.dumps(src), dst], capture_output=True, text=True, check=True)
+    out = subprocess.run(
+        [sys.executable, "-c", code, json.dumps(src), dst],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     return json.loads(out.stdout.strip().splitlines()[-1])
 
 
 def main() -> None:
     """Run every method `--rounds` times and report."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--files", default="data/*.parquet", help="a glob of the files to concatenate, in sorted order")
+    parser.add_argument(
+        "--files",
+        default="data/*.parquet",
+        help="a glob of the files to concatenate, in sorted order",
+    )
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--results", type=Path, default=Path("results.jsonl"))
     args = parser.parse_args()
@@ -84,9 +97,16 @@ def main() -> None:
             prints = {}
             for method in order:
                 dst = str(Path(tmp) / f"{method}.parquet")
-                res = run(method, src, dst) | {"method": method, "round": r, "output_mb": Path(dst).stat().st_size / 2**20}
+                res = run(method, src, dst) | {
+                    "method": method,
+                    "round": r,
+                    "output_mb": Path(dst).stat().st_size / 2**20,
+                }
                 runs.append(res)
-                print(f"round {r} {method:8s} {res['wall']:7.2f} s wall {res['cpu']:7.2f} s CPU {res['peak_rss_mb']:6d} MB peak RSS", flush=True)
+                print(
+                    f"round {r} {method:8s} {res['wall']:7.2f} s wall {res['cpu']:7.2f} s CPU {res['peak_rss_mb']:6d} MB peak RSS",
+                    flush=True,
+                )
                 if r == 0:
                     prints[method] = fingerprint(dst)
                 Path(dst).unlink()
@@ -96,9 +116,17 @@ def main() -> None:
     for method in METHODS:
         mine = [x for x in runs if x["method"] == method]
         span = lambda k, f: f"{f(min(x[k] for x in mine))}-{f(max(x[k] for x in mine))}"
-        print(f"{method:8s}  {span('wall', '{:.2f}'.format):14s}  {span('cpu', '{:.2f}'.format):14s}  {span('peak_rss_mb', str)}")
-    record = {"when": time.strftime("%Y-%m-%dT%H:%M:%S"), "machine": platform.machine(), "python": platform.python_version(),
-              "files": len(src), "bytes": size, "runs": runs}
+        print(
+            f"{method:8s}  {span('wall', '{:.2f}'.format):14s}  {span('cpu', '{:.2f}'.format):14s}  {span('peak_rss_mb', str)}"
+        )
+    record = {
+        "when": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "machine": platform.machine(),
+        "python": platform.python_version(),
+        "files": len(src),
+        "bytes": size,
+        "runs": runs,
+    }
     with args.results.open("a") as f:
         f.write(json.dumps(record) + "\n")
 
