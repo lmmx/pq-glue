@@ -58,4 +58,4 @@ in-process:
 | pq-glue | 1.1–1.5 | 0.6 | 87 MB (whole Python process) |
 
 **In wikidata-pq's pipeline** (66 chunks, 6 workers, groups of 22 chunks), merging each
-group's claims with pq-glue instead of Polars cut the run from 180–185 s to 130–132 s.
+group's claims with pq-glue instead of Polars cut the run from 182.9–185.6 s to 131.7–134.8 s (3 runs each, interleaved).

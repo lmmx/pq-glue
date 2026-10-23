@@ -71,6 +71,8 @@ pq.write_table(
   comes from.
 - [Column orders](concepts/column-orders.md): why the copied float statistics need a
   change to the footer, and how pq-glue makes it.
+- [Benchmarks](benchmarks.md): pq-glue against Polars and pyarrow, on generated files
+  and on Wikidata claims.
 
 ## Install
 
@@ -98,5 +100,5 @@ The Python package needs Python 3.10 or later and has no Python dependencies.
 
 On the claims of 66 Wikidata chunks (555 MB, 9.4 million rows, 93 nested leaf columns),
 `concat` took 1.1 to 1.5 s and 0.6 s of CPU. Polars took 61 s (238 s of CPU) and pyarrow
-56 s. The [benchmarks](https://github.com/lmmx/pq-glue/tree/master/bench) can be
-reproduced with generated files.
+56 s. The [benchmarks](benchmarks.md) page has the full figures
+and how to reproduce them.

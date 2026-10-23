@@ -100,8 +100,9 @@ pq-glue rewrites the footer's `column_orders` list in place:
 ## Performance
 
 Concatenating 66 files (555 MB, 9.4 million rows, 93 nested leaf columns) took 1.1 to
-1.5 s with pq-glue, against 61 s with Polars and 56 s with pyarrow. The method and the
-scripts to reproduce it are in [bench/](bench/README.md).
+1.5 s with pq-glue, against 61 s with Polars and 56 s with pyarrow. See the
+[benchmarks page](https://lmmx.github.io/pq-glue/benchmarks/) for all the figures, and
+[bench/](bench/README.md) to reproduce them.
 
 ## Development
 
