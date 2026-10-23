@@ -7,6 +7,10 @@ groups into one file, without decoding them, from Python (`pq_glue.concat`) or R
 (`pq_glue::concat`). Install with `pip install pq-glue`. Each link below is the Markdown
 version of a page of https://lmmx.github.io/pq-glue/.
 
+## Benchmarks
+
+- [Benchmarks](<https://lmmx.github.io/pq-glue/benchmarks/index.md>): Wall time, CPU time and peak memory of concatenating Parquet files with pq-glue, Polars and pyarrow, and how to reproduce them.
+
 ## Concepts
 
 - [Concepts](<https://lmmx.github.io/pq-glue/concepts/index.md>): How pq-glue concatenates Parquet files: row groups are copied as bytes, and only the footer is new.

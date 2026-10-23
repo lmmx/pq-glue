@@ -24,6 +24,7 @@ pq-glue copies the row groups of several Parquet files into one new file. Each c
 - [Quickstart](<https://lmmx.github.io/pq-glue/getting-started/quickstart/index.md>): write two files, concatenate them, and see what is refused.
 - [What is copied](<https://lmmx.github.io/pq-glue/concepts/copying/index.md>): every part of the output file, and where it comes from.
 - [Column orders](<https://lmmx.github.io/pq-glue/concepts/column-orders/index.md>): why the copied float statistics need a change to the footer, and how pq-glue makes it.
+- [Benchmarks](<https://lmmx.github.io/pq-glue/benchmarks/index.md>): pq-glue against Polars and pyarrow, on generated files and on Wikidata claims.
 
 ## Install
 
@@ -49,4 +50,4 @@ The Python package needs Python 3.10 or later and has no Python dependencies.
 
 ## Performance
 
-On the claims of 66 Wikidata chunks (555 MB, 9.4 million rows, 93 nested leaf columns), `concat` took 1.1 to 1.5 s and 0.6 s of CPU. Polars took 61 s (238 s of CPU) and pyarrow 56 s. The [benchmarks](<https://github.com/lmmx/pq-glue/tree/master/bench>) can be reproduced with generated files.
+On the claims of 66 Wikidata chunks (555 MB, 9.4 million rows, 93 nested leaf columns), `concat` took 1.1 to 1.5 s and 0.6 s of CPU. Polars took 61 s (238 s of CPU) and pyarrow 56 s. The [benchmarks](<https://lmmx.github.io/pq-glue/benchmarks/index.md>) page has the full figures and how to reproduce them.
