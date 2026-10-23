@@ -591,17 +591,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#in-a-pipeline" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        In a pipeline
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#checking-the-outputs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1060,17 +1049,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#in-a-pipeline" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        In a pipeline
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#checking-the-outputs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1231,40 +1209,6 @@ groups, 93 leaf columns nested up to lists of structs of lists. Measured in-proc
 repetition and definition levels to rebuild. pq-glue does neither, so its time depends
 only on the bytes copied. It was about 20 times faster than Polars on the flat generated
 files, and about 50 times faster on the claims.</p>
-<h2 id="in-a-pipeline">In a pipeline<a class="headerlink" href="#in-a-pipeline" title="Permanent link">&para;</a></h2>
-<p>wikidata-pq processes Wikidata in chunks and merges each group of chunks' partition
-files before uploading them. On 66 chunks with 6 workers and groups of 22 chunks, merging
-the claims with pq-glue instead of Polars changed the whole run as follows (3 runs each,
-interleaved):</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>Polars</th>
-<th>pq-glue</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>wall</td>
-<td>182.9–185.6 s</td>
-<td>131.7–134.8 s</td>
-</tr>
-<tr>
-<td>CPU of the merges</td>
-<td>270–275 s</td>
-<td>46–48 s</td>
-</tr>
-<tr>
-<td>peak RSS</td>
-<td>10.0–10.3 GB</td>
-<td>9.3–10.5 GB</td>
-</tr>
-</tbody>
-</table>
-<p>The remaining merge CPU is the other tables, which wikidata-pq still merges with Polars.
-Both runs' outputs have the same rows in the same order, with the same schema, for every
-table and partition key.</p>
 <h2 id="checking-the-outputs">Checking the outputs<a class="headerlink" href="#checking-the-outputs" title="Permanent link">&para;</a></h2>
 <p>In each benchmark, the first round's outputs must agree before any times are recorded:
 the same row count, and the same two sums of position-seeded row hashes, read with Polars.
