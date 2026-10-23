@@ -130,7 +130,7 @@ ship-rust-and-python bump="patch" mode="":
     # 🐍 Tagging py-$version: CI builds the wheels from it and publishes them to PyPI
     git tag -a "py-$version" -m "Python Release $version"
     git push origin "py-$version"
-    # ✅ Shipped $version: follow the PyPI upload with `gh run watch` (CI on py-$version)
+    # ✅ Shipped $version: CI on the py-$version tag publishes the wheels to PyPI
 
 # --------------------------------------------------------------------------------------------------
 
