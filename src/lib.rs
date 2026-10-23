@@ -1,6 +1,6 @@
 //! Glue Parquet files together without decoding them.
 //!
-//! [`concat`] joins Parquet files that share one schema into one file by copying each
+//! [`concat`](concat()) joins Parquet files that share one schema into one file by copying each
 //! row group's encoded column chunks (pages, dictionaries, statistics) as they are:
 //! nothing is decoded or re-encoded, so the cost is the bytes copied, whatever the
 //! nesting.

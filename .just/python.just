@@ -19,13 +19,15 @@ t:
 
 py: py-dev py-test
 
-# Develop the Python package (debug mode)
+# Develop the Python package (debug mode), in .venv with its dependency groups
 py-dev:
-    maturin develop --uv
+    uv sync --no-install-project
+    uv run --no-sync maturin develop --uv
 
-# Develop the Python package (release mode)
+# Develop the Python package (release mode), in .venv with its dependency groups
 py-release:
-    maturin develop --uv --release
+    uv sync --no-install-project
+    uv run --no-sync maturin develop --uv --release
 
 # Test the Python package with pytest
 py-test *args:

@@ -47,8 +47,11 @@ print(json.dumps({{"wall": time.perf_counter() - t, "cpu": time.process_time() -
 
 
 def fingerprint(path: str) -> tuple:
-    """Row count and two sums of row hashes seeded by position: equal for the same rows
-    in the same order."""
+    """Fingerprint a Parquet file's rows and their order.
+
+    The row count and two sums of row hashes seeded by position: equal for the same rows
+    in the same order.
+    """
     import polars as pl
 
     row = pl.struct(pl.all())

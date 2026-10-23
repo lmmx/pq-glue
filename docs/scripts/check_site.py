@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def nav_pages(nav):
+    """Yield every page path in a zensical nav, at any depth."""
     for entry in nav:
         if isinstance(entry, str):
             yield entry
@@ -41,11 +42,14 @@ def nav_pages(nav):
 
 
 class Links(HTMLParser):
+    """Collect an HTML page's link targets and its element ids."""
+
     def __init__(self):
         super().__init__()
         self.links, self.ids = [], set()
 
     def handle_starttag(self, tag, attrs):
+        """Record the tag's id or anchor name, and its href or src."""
         attrs = dict(attrs)
         if "id" in attrs:
             self.ids.add(attrs["id"])
@@ -60,6 +64,7 @@ class Links(HTMLParser):
 
 
 def check_nav(config, problems):
+    """Every page is in the nav, and every nav entry exists."""
     docs = ROOT / config["project"]["docs_dir"]
     pages = {p.relative_to(docs).as_posix() for p in docs.rglob("*.md")}
     listed = set(nav_pages(config["project"]["nav"]))
@@ -70,6 +75,7 @@ def check_nav(config, problems):
 
 
 def check_links(config, site, problems):
+    """Every internal link of the built site resolves, with its anchor."""
     base = urlparse(config["project"]["site_url"]).path  # "/pq-glue/"
     parsed = {}
     for html in site.rglob("*.html"):
@@ -116,6 +122,7 @@ def check_links(config, site, problems):
 
 
 def check_llms(config, site, problems):
+    """Every nav page has a description, listed once in llmstxt, and the built llms files."""
     docs = ROOT / config["project"]["docs_dir"]
     sections = config["project"]["plugins"]["llmstxt"]["sections"]
     listed = [
@@ -181,6 +188,7 @@ def public_names(path):
 
 
 def check_api(config, site, problems):
+    """Every public module has a reference page, and every exported name an anchor."""
     docs = ROOT / config["project"]["docs_dir"]
     src = ROOT / "python" / "pq_glue"
     public = ["pq_glue"] + sorted(
@@ -219,6 +227,7 @@ def check_api(config, site, problems):
 
 
 def main():
+    """Run every check and exit non-zero listing the problems found."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--site", default=str(ROOT / "site"))
     args = parser.parse_args()

@@ -32,6 +32,7 @@ FLAGS = doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE
 
 
 def blocks(text: str):
+    """Yield each testable fence in `text` as (language, first body line, body)."""
     for m in FENCE.finditer(text):
         info = m["info"].strip().strip("{}").split()
         lang = LANGS.get(info[0].lstrip(".")) if info else None
@@ -41,6 +42,7 @@ def blocks(text: str):
 
 
 def pytest_collect_file(file_path: Path, parent):
+    """Collect a page under docs/site/ that has testable examples."""
     if file_path.suffix == ".md" and file_path.is_relative_to(SITE):
         found = list(blocks(file_path.read_text()))
         if found:
@@ -49,24 +51,30 @@ def pytest_collect_file(file_path: Path, parent):
 
 
 class MarkdownPage(pytest.File):
+    """A documentation page, collected as one item of its examples."""
+
     def __init__(self, *, found, **kw):
         super().__init__(**kw)
         self.found = found
 
     def collect(self):
+        """Yield the page's examples as one item."""
         yield MarkdownExamples.from_parent(self, name="examples", found=self.found)
 
 
 class ExampleError(Exception):
-    pass
+    """An example failed: the message holds its location and output."""
 
 
 class MarkdownExamples(pytest.Item):
+    """A page's examples, run in order in one namespace, in a temporary directory."""
+
     def __init__(self, *, found, **kw):
         super().__init__(**kw)
         self.found = found
 
     def runtest(self):
+        """Run each example: Python blocks with exec, pycon blocks as doctests."""
         tmp = self.config._tmp_path_factory.mktemp("docs-example")  # noqa: SLF001
         globs = {"__name__": "__docs__"}
         cwd = os.getcwd()
@@ -104,9 +112,11 @@ class MarkdownExamples(pytest.Item):
             os.chdir(cwd)
 
     def repr_failure(self, excinfo):
+        """Report a failed example by its location and output, without pytest's traceback."""
         if isinstance(excinfo.value, ExampleError):
             return str(excinfo.value)
         return super().repr_failure(excinfo)
 
     def reportinfo(self):
+        """Name the item after its page."""
         return self.path, 0, f"examples in {self.path.name}"

@@ -1,4 +1,4 @@
-//! The errors [`concat`](crate::concat) returns.
+//! The errors [`concat`](crate::concat()) returns.
 
 use std::fmt;
 use std::io;
@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use parquet::errors::ParquetError;
 
-/// What [`concat`](crate::concat) and the footer checks can fail with.
+/// What [`concat`](crate::concat()) and the footer checks can fail with.
 #[derive(Debug)]
 pub enum Error {
     /// No input files were given.
