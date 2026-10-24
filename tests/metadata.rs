@@ -102,3 +102,78 @@ fn page_indexes_and_bloom_filters_are_copied() {
         }
     }
 }
+
+#[test]
+fn writer_and_sorting_columns_are_the_inputs() {
+    use parquet::file::metadata::SortingColumn;
+    use parquet::file::properties::{WriterProperties, WriterVersion};
+    let dir = tempfile::tempdir().unwrap();
+    let sorting = vec![SortingColumn {
+        column_idx: 0,
+        descending: false,
+        nulls_first: false,
+    }];
+    let inputs: Vec<_> = (0..3)
+        .map(|i| {
+            let path = dir.path().join(format!("in_{i}.parquet"));
+            let props = WriterProperties::builder()
+                .set_max_row_group_row_count(Some(40))
+                .set_created_by("some writer version 1.2.3".into())
+                .set_writer_version(WriterVersion::PARQUET_2_0)
+                .set_sorting_columns(Some(sorting.clone()))
+                .build();
+            let b = batch(i, 100, true);
+            let f = std::fs::File::create(&path).unwrap();
+            let mut w = parquet::arrow::ArrowWriter::try_new(f, b.schema(), Some(props)).unwrap();
+            w.write(&b).unwrap();
+            w.close().unwrap();
+            path
+        })
+        .collect();
+    let out = dir.path().join("out.parquet");
+    pq_glue::concat(&inputs, &out).unwrap();
+    let md = metadata(&out);
+    assert_eq!(
+        md.file_metadata().created_by(),
+        Some("some writer version 1.2.3")
+    );
+    assert_eq!(md.file_metadata().version(), 2);
+    assert!(md.num_row_groups() > 3);
+    for rg in md.row_groups() {
+        assert_eq!(rg.sorting_columns(), Some(&sorting));
+    }
+}
+
+#[test]
+fn row_groups_sorted_differently_declare_no_sorting_columns() {
+    use parquet::file::metadata::SortingColumn;
+    use parquet::file::properties::WriterProperties;
+    let dir = tempfile::tempdir().unwrap();
+    let sorted = dir.path().join("sorted.parquet");
+    let props = WriterProperties::builder()
+        .set_key_value_metadata(Some(vec![parquet::file::metadata::KeyValue::new(
+            "origin".into(),
+            "test".to_string(),
+        )]))
+        .set_sorting_columns(Some(vec![SortingColumn {
+            column_idx: 0,
+            descending: false,
+            nulls_first: false,
+        }]))
+        .build();
+    let b = batch(0, 50, true);
+    let mut w = parquet::arrow::ArrowWriter::try_new(
+        std::fs::File::create(&sorted).unwrap(),
+        b.schema(),
+        Some(props),
+    )
+    .unwrap();
+    w.write(&b).unwrap();
+    w.close().unwrap();
+    let inputs = vec![sorted, write(dir.path(), 1, 50, 20, true)];
+    let out = dir.path().join("out.parquet");
+    pq_glue::concat(&inputs, &out).unwrap();
+    for rg in metadata(&out).row_groups() {
+        assert_eq!(rg.sorting_columns(), None);
+    }
+}

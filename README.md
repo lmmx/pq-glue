@@ -59,6 +59,14 @@ The output file contains:
 - **Column orders:** the inputs' column orders (see [Float statistics](#float-statistics)).
 - **Indexes and filters:** the inputs' page indexes (column and offset indexes) and bloom
   filters, where the inputs have them.
+- **Writer and sorting:** the inputs' `created_by`, format version and row groups'
+  sorting columns, where all the inputs have the same. `created_by` names the writer that
+  encoded the column chunks, which readers use to work around known writers' bugs. A
+  file written as separate row groups and glued declares what the file written whole
+  declares.
+  Where the inputs differ, the output has parquet-rs's `created_by` and format version,
+  and its row groups declare no sorting columns: parquet-rs gives every row group the
+  same sorting columns, and declaring one row group's for another could be false.
 
 ## Requirements on the inputs
 
