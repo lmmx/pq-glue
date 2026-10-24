@@ -22,7 +22,8 @@
 //! ```
 //!
 //! With the `parallel` feature, `concat_many` runs many such concatenations at once,
-//! on rayon.
+//! on rayon. With the `read` feature, [`read::read`] reads a file to Arrow record
+//! batches, its row groups decoded in parallel.
 
 mod concat;
 mod error;
@@ -30,6 +31,8 @@ pub mod footer;
 mod input;
 #[cfg(feature = "python")]
 mod python;
+#[cfg(feature = "read")]
+pub mod read;
 #[cfg(feature = "write")]
 pub mod write;
 

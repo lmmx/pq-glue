@@ -37,6 +37,15 @@ pub enum Error {
         /// The underlying error.
         source: ParquetError,
     },
+    /// A row group asked for that the file does not have.
+    RowGroup {
+        /// The file.
+        path: PathBuf,
+        /// The row group asked for.
+        row_group: usize,
+        /// The file's row groups.
+        row_groups: usize,
+    },
     /// The thread pool for a write could not be made.
     Pool(String),
     /// The footer parquet-rs wrote was not laid out as expected, so its column orders
@@ -86,6 +95,15 @@ impl fmt::Display for Error {
             }
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
             Error::Parquet { path, source } => write!(f, "{}: {source}", path.display()),
+            Error::RowGroup {
+                path,
+                row_group,
+                row_groups,
+            } => write!(
+                f,
+                "{}: no row group {row_group} (the file has {row_groups})",
+                path.display()
+            ),
             Error::Pool(reason) => write!(f, "no thread pool for the write: {reason}"),
             Error::Footer { path, reason } => {
                 write!(
