@@ -15,20 +15,43 @@ crate-type = ["cdylib", "rlib"]
 name = "pq_glue"
 
 [dependencies]
-# No codecs: column chunks are copied as they are, never decompressed
+# No codecs: column chunks are copied as they are, never decompressed. The `write`
+# feature (Arrow record batches written to Parquet) adds Arrow, zstd and snappy
+arrow-array = { optional = true, version = "60.0.0" }
+arrow-schema = { optional = true, version = "60.0.0" }
+bytes = { optional = true, version = "1.10" }
 parquet = { default-features = false, version = "60.0.0" }
 pyo3 = { features = ["abi3-py310"], optional = true, version = "0.29" }
+rayon = { optional = true, version = "1.11.0" }
+rustc-hash = { optional = true, version = "2" }
+xxhash-rust = { features = ["xxh64"], optional = true, version = "0.8.15" }
 
 [dev-dependencies]
 arrow-array = "60.0.0"
+arrow-buffer = "60.0.0"
+arrow-cast = "60.0.0"
 arrow-schema = "60.0.0"
+arrow-select = "60.0.0"
 parquet = { default-features = false, features = ["arrow"], version = "60.0.0" }
 tempfile = "3.23.0"
 
 [features]
 default = []
 # The Python extension module (built by maturin, see pyproject.toml)
-python = ["dep:pyo3"]
+python = ["arrow-array/ffi", "dep:pyo3", "write"]
+# Arrow record batches written to Parquet (`pq_glue::write`), their row groups' columns
+# encoded in parallel
+write = [
+  "dep:arrow-array",
+  "dep:arrow-schema",
+  "dep:bytes",
+  "dep:rayon",
+  "dep:rustc-hash",
+  "dep:xxhash-rust",
+  "parquet/arrow",
+  "parquet/snap",
+  "parquet/zstd",
+]
 
 [profile.dev]
 codegen-units = 256
