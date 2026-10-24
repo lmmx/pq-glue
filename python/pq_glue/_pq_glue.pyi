@@ -136,3 +136,31 @@ def write_parquet(
     OSError
         If `path` cannot be written.
     """
+
+def read_parquet(
+    path: str | PathLike[str], row_groups: Sequence[int] | None = None
+) -> object:
+    """Read a Parquet file's row groups, each decoded in parallel.
+
+    Parameters
+    ----------
+    path
+        The Parquet file, read into memory once.
+    row_groups
+        The row groups to read, in the order to return them; all of them, in order, if
+        None.
+
+    Returns
+    -------
+    object
+        A PyCapsule named `arrow_array_stream` holding an Arrow C stream: the file's Arrow
+        schema and one record batch per row group (`pq_glue.read_parquet` wraps it as a
+        `pyarrow.Table`).
+
+    Raises
+    ------
+    ValueError
+        If the file is not Parquet, or a row group asked for is not in it.
+    OSError
+        If the file cannot be read.
+    """

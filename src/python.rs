@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use arrow_array::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
-use arrow_array::{RecordBatch, RecordBatchReader};
+use arrow_array::{RecordBatch, RecordBatchIterator, RecordBatchReader};
 use arrow_schema::SchemaRef;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::metadata::SortingColumn;
@@ -217,11 +217,33 @@ fn py_write_parquet(
     })
 }
 
+/// Read a Parquet file's row groups (all if `row_groups` is None), each decoded in
+/// parallel, as an Arrow C stream capsule. See `pq_glue/_pq_glue.pyi`.
+#[pyfunction]
+#[pyo3(name = "read_parquet")]
+#[pyo3(signature = (path, row_groups=None))]
+fn py_read_parquet<'py>(
+    py: Python<'py>,
+    path: PathBuf,
+    row_groups: Option<Vec<usize>>,
+) -> PyResult<Bound<'py, PyCapsule>> {
+    let (schema, batches) = py.detach(|| crate::read::read(&path, row_groups.as_deref()))?;
+    let reader = RecordBatchIterator::new(batches.into_iter().map(Ok), schema);
+    // The capsule owns the stream: a consumer moves it out (releasing the capsule's), and
+    // one never consumed is released when the capsule is freed
+    PyCapsule::new_with_value(
+        py,
+        FFI_ArrowArrayStream::new(Box::new(reader)),
+        c"arrow_array_stream",
+    )
+}
+
 #[pymodule]
 fn _pq_glue(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_concat, m)?)?;
     m.add_function(wrap_pyfunction!(py_concat_many, m)?)?;
     m.add_function(wrap_pyfunction!(py_write_parquet, m)?)?;
+    m.add_function(wrap_pyfunction!(py_read_parquet, m)?)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
