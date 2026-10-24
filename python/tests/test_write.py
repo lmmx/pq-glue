@@ -9,6 +9,7 @@ import pq_glue
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from typing import Literal
 
 from .conftest import table
 
@@ -166,12 +167,13 @@ def test_native_and_parallel_same_bytes(tmp_path, cdc):
     """Check native and parallel are one encoder: the same file at any worker count."""
     t = table(6, 2000)
     files = []
-    for engine, workers in [
+    cases: list[tuple[Literal["native", "parallel"], int | None]] = [
         ("native", None),
         ("parallel", 2),
         ("parallel", 4),
         ("parallel", None),
-    ]:
+    ]
+    for engine, workers in cases:
         out = tmp_path / f"{engine}-{workers}.parquet"
         pq_glue.write_parquet(
             t,
@@ -245,6 +247,6 @@ def test_engine_options_rejected(tmp_path):
     with pytest.raises(ValueError, match="one thread"):
         pq_glue.write_parquet(t, out, engine="native", max_workers=2)
     with pytest.raises(ValueError, match="engine must be"):
-        pq_glue.write_parquet(t, out, engine="duckdb")
+        pq_glue.write_parquet(t, out, engine="duckdb")  # ty: ignore[invalid-argument-type]
     with pytest.raises(ValueError, match="max_workers"):
         pq_glue.write_parquet(t, out, max_workers=0)

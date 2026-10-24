@@ -89,14 +89,6 @@ def write_parquet(
         raise ValueError("max_workers must be at least 1")
     if row_group_size is not None and row_group_size < 1:
         raise ValueError("row_group_size must be at least 1")
-    common = dict(
-        row_group_size=row_group_size,
-        compression=compression,
-        compression_level=compression_level,
-        sorting_columns=sorting_columns,
-        content_defined_chunking=content_defined_chunking,
-        spec_names=spec_names,
-    )
     if engine == "native":
         if max_workers not in (None, 1):
             raise ValueError(
@@ -108,7 +100,17 @@ def write_parquet(
     elif engine == "pyarrow":
         if adaptive_dictionary:
             raise ValueError('engine "pyarrow" has no adaptive dictionary')
-        return _pyarrow(data, Path(path), max_workers or 1, **common)
+        return _pyarrow(
+            data,
+            Path(path),
+            max_workers or 1,
+            row_group_size=row_group_size,
+            compression=compression,
+            compression_level=compression_level,
+            sorting_columns=sorting_columns,
+            content_defined_chunking=content_defined_chunking,
+            spec_names=spec_names,
+        )
     else:
         raise ValueError(
             f'engine must be "native", "parallel" or "pyarrow", not {engine!r}'
@@ -120,7 +122,12 @@ def write_parquet(
         adaptive_dictionary=True
         if adaptive_dictionary is None
         else adaptive_dictionary,
-        **common,
+        row_group_size=row_group_size,
+        compression=compression,
+        compression_level=compression_level,
+        sorting_columns=sorting_columns,
+        content_defined_chunking=content_defined_chunking,
+        spec_names=spec_names,
     )
 
 
