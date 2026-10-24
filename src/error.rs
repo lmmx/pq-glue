@@ -37,6 +37,8 @@ pub enum Error {
         /// The underlying error.
         source: ParquetError,
     },
+    /// The thread pool for a write could not be made.
+    Pool(String),
     /// The footer parquet-rs wrote was not laid out as expected, so its column orders
     /// were not rewritten (see [`footer::restore_column_orders`](crate::footer::restore_column_orders)).
     Footer {
@@ -84,6 +86,7 @@ impl fmt::Display for Error {
             }
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
             Error::Parquet { path, source } => write!(f, "{}: {source}", path.display()),
+            Error::Pool(reason) => write!(f, "no thread pool for the write: {reason}"),
             Error::Footer { path, reason } => {
                 write!(
                     f,

@@ -150,7 +150,7 @@ fn chunking(value: &Bound<'_, PyAny>) -> PyResult<Option<CdcOptions>> {
 #[pyo3(signature = (
     data, path, *, row_group_size=None, compression="zstd", compression_level=None,
     spec_names=true, adaptive_dictionary=true, sorting_columns=None,
-    content_defined_chunking=None
+    content_defined_chunking=None, max_workers=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn py_write_parquet(
@@ -164,7 +164,11 @@ fn py_write_parquet(
     adaptive_dictionary: bool,
     sorting_columns: Option<Vec<Bound<'_, PyAny>>>,
     content_defined_chunking: Option<Bound<'_, PyAny>>,
+    max_workers: Option<usize>,
 ) -> PyResult<u64> {
+    if max_workers == Some(0) {
+        return Err(PyValueError::new_err("max_workers must be at least 1"));
+    }
     if row_group_size == Some(0) {
         return Err(PyValueError::new_err("row_group_size must be at least 1"));
     }
@@ -182,6 +186,7 @@ fn py_write_parquet(
             Some(v) => chunking(&v)?,
             None => None,
         },
+        max_workers,
     };
     // The stream read, and the batches encoded, without the GIL: a producer that needs
     // it (a Python record batch reader) takes it for itself

@@ -48,6 +48,11 @@ pub struct WriteOptions {
     /// Content-defined chunking of each column's data pages, so pages of unchanged
     /// rows repeat from one file to the next (for deduplicating storage).
     pub content_defined_chunking: Option<CdcOptions>,
+    /// At most this many threads encode at once, in a pool of the write's own; `None`
+    /// uses the calling rayon pool (by default one thread per CPU). Each thread holds a
+    /// row group's levels and encoded pages in flight, so memory goes with it. The
+    /// output is the same whatever the threads.
+    pub max_workers: Option<usize>,
 }
 
 impl Default for WriteOptions {
@@ -59,6 +64,7 @@ impl Default for WriteOptions {
             adaptive_dictionary: true,
             sorting_columns: None,
             content_defined_chunking: None,
+            max_workers: None,
         }
     }
 }
@@ -66,6 +72,22 @@ impl Default for WriteOptions {
 /// Write `batches`, of `schema`, to `path` (created or truncated) as `options` say, and
 /// return the rows written. The output is removed if the write fails.
 pub fn write_batches(
+    path: &Path,
+    schema: SchemaRef,
+    batches: Vec<RecordBatch>,
+    options: &WriteOptions,
+) -> Result<u64> {
+    match options.max_workers {
+        Some(n) => rayon::ThreadPoolBuilder::new()
+            .num_threads(n.max(1))
+            .build()
+            .map_err(|e| Error::Pool(e.to_string()))?
+            .install(|| write_in_pool(path, schema, batches, options)),
+        None => write_in_pool(path, schema, batches, options),
+    }
+}
+
+fn write_in_pool(
     path: &Path,
     schema: SchemaRef,
     batches: Vec<RecordBatch>,

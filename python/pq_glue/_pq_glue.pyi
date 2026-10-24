@@ -47,8 +47,12 @@ def write_parquet(
     adaptive_dictionary: bool = True,
     sorting_columns: Sequence[str | int | tuple[str | int, bool, bool]] | None = None,
     content_defined_chunking: bool | Mapping[str, int] | None = None,
+    max_workers: int | None = None,
 ) -> int:
-    """Write Arrow data to a Parquet file, encoding in parallel, with arrow-rs.
+    """Write Arrow data with arrow-rs: `pq_glue.write_parquet`'s native engines.
+
+    The "native" and "parallel" engines of `pq_glue.write_parquet` (which see), on
+    `max_workers` threads.
 
     Needs no pyarrow: `data` is read through the Arrow PyCapsule interface. Each row
     group's leaf columns are encoded in parallel; with content-defined chunking, whose
