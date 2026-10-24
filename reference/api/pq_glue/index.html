@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="The pq_glue Python package: concat and its errors.">
+        <meta name="description" content="The pq_glue Python package: concat, concat_many, write_parquet and their errors.">
       
       
         <meta name="author" content="Louis Maddox">
@@ -695,6 +695,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pq_glue.concat_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;concat_many
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pq_glue.write_parquet" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1051,6 +1062,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pq_glue.concat_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;concat_many
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pq_glue.write_parquet" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1102,8 +1124,8 @@
     <div class="doc doc-contents first">
 
         <p>Glue Parquet files together, and write Arrow data to Parquet.</p>
-<p><code>concat</code> copies encoded row groups without decoding them; <code>write_parquet</code> writes Arrow
-data with a choice of engines.</p>
+<p><code>concat</code> copies encoded row groups without decoding them (<code>concat_many</code> for many
+concatenations at once); <code>write_parquet</code> writes Arrow data with a choice of engines.</p>
 
 
 
@@ -1274,6 +1296,133 @@ or the sources differ in schema, key-value metadata or column orders.</p>
       </tbody>
     </table>
 
+
+    </div>
+
+</div>
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="pq_glue.concat_many" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">concat_many</span>
+
+
+<a href="#pq_glue.concat_many" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">concat_many</span><span class="p">(</span>
+    <span class="n">jobs</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="collections.abc.Sequence" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence">Sequence</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" title="collections.abc.Sequence" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence">Sequence</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" title="os.PathLike" href="https://docs.python.org/3/library/os.html#os.PathLike">PathLike</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">]],</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" title="os.PathLike" href="https://docs.python.org/3/library/os.html#os.PathLike">PathLike</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">]]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#list">list</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Concatenate many sets of Parquet files at once, each into its own file.</p>
+<p>Each job, <code>(sources, dst)</code>, is a <code>concat(sources, dst)</code>, with the same output; the
+jobs run in parallel, on a thread per CPU, with the GIL released for the whole
+batch. For many small concatenations (each a few files), whose time goes on opening
+files and writing footers more than on bytes copied, one call is quicker than a
+<code>concat</code> per job.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>jobs</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-external" title="collections.abc.Sequence" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence">Sequence</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a>[<a class="autorefs autorefs-external" title="collections.abc.Sequence" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence">Sequence</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a> | <a class="autorefs autorefs-external" title="os.PathLike" href="https://docs.python.org/3/library/os.html#os.PathLike">PathLike</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a>]], <a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a> | <a class="autorefs autorefs-external" title="os.PathLike" href="https://docs.python.org/3/library/os.html#os.PathLike">PathLike</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a>]]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(sources, dst)</code> tuples, as <code>concat</code> takes them. No two jobs may have the same
+<code>dst</code>, nor one job's <code>dst</code> be another's source.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#list">list</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The number of rows written for each job, in the jobs' order.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError">ValueError</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>For the first job (in the jobs' order) that fails as <code>concat</code> raises ValueError,
+naming its <code>dst</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/exceptions.html#OSError">OSError</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>For the first job that fails as <code>concat</code> raises OSError, naming its <code>dst</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Every job runs, whether or not another fails: a job that fails leaves no <code>dst</code>, as
+<code>concat</code> leaves none, and the others' are written.</p>
+</details>
 
     </div>
 

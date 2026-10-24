@@ -2,7 +2,7 @@
 
 Glue Parquet files together, and write Arrow data to Parquet.
 
-`concat` copies encoded row groups without decoding them; `write_parquet` writes Arrow data with a choice of engines.
+`concat` copies encoded row groups without decoding them (`concat_many` for many concatenations at once); `write_parquet` writes Arrow data with a choice of engines.
 
 ## \_\_version\_\_
 
@@ -39,6 +39,43 @@ Raises:
 | --- | --- |
 | `ValueError` | If there are no sources, `dst` is one of them, a source is not a Parquet file, or the sources differ in schema, key-value metadata or column orders. |
 | `OSError` | If a source cannot be opened or `dst` cannot be written. |
+
+## concat\_many
+
+```python
+concat_many(
+    jobs: Sequence[tuple[Sequence[str | PathLike[str]], str | PathLike[str]]],
+) -> list[int]
+```
+
+Concatenate many sets of Parquet files at once, each into its own file.
+
+Each job, `(sources, dst)`, is a `concat(sources, dst)`, with the same output; the jobs run in parallel, on a thread per CPU, with the GIL released for the whole batch. For many small concatenations (each a few files), whose time goes on opening files and writing footers more than on bytes copied, one call is quicker than a `concat` per job.
+
+Parameters:
+
+| Name | Type | Description | Default |
+| --- | --- | --- | --- |
+| `jobs` | `Sequence[tuple[Sequence[str \| PathLike[str]], str \| PathLike[str]]]` | `(sources, dst)` tuples, as `concat` takes them. No two jobs may have the same `dst`, nor one job's `dst` be another's source. | *required* |
+
+Returns:
+
+| Type | Description |
+| --- | --- |
+| `list[int]` | The number of rows written for each job, in the jobs' order. |
+
+Raises:
+
+| Type | Description |
+| --- | --- |
+| `ValueError` | For the first job (in the jobs' order) that fails as `concat` raises ValueError, naming its `dst`. |
+| `OSError` | For the first job that fails as `concat` raises OSError, naming its `dst`. |
+
+> [!NOTE]
+>
+> **Notes**
+>
+> Every job runs, whether or not another fails: a job that fails leaves no `dst`, as `concat` leaves none, and the others' are written.
 
 ## write\_parquet
 

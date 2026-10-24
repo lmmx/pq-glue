@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="The pq-glue Rust crate: concat, Error and the footer module.">
+        <meta name="description" content="The pq-glue Rust crate: concat, concat_many, Error and the footer module.">
       
       
         <meta name="author" content="Louis Maddox">
@@ -968,6 +968,10 @@
 <td>concatenate the inputs into <code>output</code>, returning the rows written</td>
 </tr>
 <tr>
+<td><code>pq_glue::concat_many(jobs: &amp;[(Vec&lt;PathBuf&gt;, PathBuf)]) -&gt; Vec&lt;Result&lt;u64&gt;&gt;</code></td>
+<td>each job's inputs concatenated into its output, as <code>concat</code> does, the jobs in parallel on rayon (feature <code>parallel</code>)</td>
+</tr>
+<tr>
 <td><code>pq_glue::Error</code></td>
 <td>the errors <code>concat</code> returns: <code>NoInputs</code>, <code>OutputIsInput</code>, <code>Incompatible</code>, <code>Io</code>, <code>Parquet</code>, <code>Footer</code></td>
 </tr>
@@ -986,7 +990,8 @@
 <span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
 <span class="p">}</span>
 </code></pre></div>
-<p>The <code>python</code> feature builds the Python extension module; it is only for maturin.</p>
+<p>The <code>parallel</code> feature adds <code>concat_many</code> (and rayon). The <code>python</code> feature builds the
+Python extension module; it is only for maturin.</p>
 
 
 

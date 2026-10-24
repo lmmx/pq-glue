@@ -211,6 +211,15 @@ The output has both files' rows, in order, and one row group per input row group
 2
 ```
 
+Many concatenations can be done in one call: each job is a `concat`, with the same output, and the jobs run in parallel. `concat_many` returns each job's rows:
+
+```pycon
+>>> pq_glue.concat_many([(["a.parquet", "b.parquet"], "ab2.parquet"), (["b.parquet"], "b2.parquet")])
+[3, 1]
+>>> open("ab2.parquet", "rb").read() == open("ab.parquet", "rb").read()
+True
+```
+
 Files with different schemas are refused, and no output is written:
 
 ```pycon
@@ -309,7 +318,7 @@ The tag starts the **CI** workflow, which builds the wheels and the sdist and up
 
 Glue Parquet files together, and write Arrow data to Parquet.
 
-`concat` copies encoded row groups without decoding them; `write_parquet` writes Arrow data with a choice of engines.
+`concat` copies encoded row groups without decoding them (`concat_many` for many concatenations at once); `write_parquet` writes Arrow data with a choice of engines.
 
 ## \_\_version\_\_
 
@@ -346,6 +355,43 @@ Raises:
 | --- | --- |
 | `ValueError` | If there are no sources, `dst` is one of them, a source is not a Parquet file, or the sources differ in schema, key-value metadata or column orders. |
 | `OSError` | If a source cannot be opened or `dst` cannot be written. |
+
+## concat\_many
+
+```python
+concat_many(
+    jobs: Sequence[tuple[Sequence[str | PathLike[str]], str | PathLike[str]]],
+) -> list[int]
+```
+
+Concatenate many sets of Parquet files at once, each into its own file.
+
+Each job, `(sources, dst)`, is a `concat(sources, dst)`, with the same output; the jobs run in parallel, on a thread per CPU, with the GIL released for the whole batch. For many small concatenations (each a few files), whose time goes on opening files and writing footers more than on bytes copied, one call is quicker than a `concat` per job.
+
+Parameters:
+
+| Name | Type | Description | Default |
+| --- | --- | --- | --- |
+| `jobs` | `Sequence[tuple[Sequence[str \| PathLike[str]], str \| PathLike[str]]]` | `(sources, dst)` tuples, as `concat` takes them. No two jobs may have the same `dst`, nor one job's `dst` be another's source. | *required* |
+
+Returns:
+
+| Type | Description |
+| --- | --- |
+| `list[int]` | The number of rows written for each job, in the jobs' order. |
+
+Raises:
+
+| Type | Description |
+| --- | --- |
+| `ValueError` | For the first job (in the jobs' order) that fails as `concat` raises ValueError, naming its `dst`. |
+| `OSError` | For the first job that fails as `concat` raises OSError, naming its `dst`. |
+
+> [!NOTE]
+>
+> **Notes**
+>
+> Every job runs, whether or not another fails: a job that fails leaves no `dst`, as `concat` leaves none, and the others' are written.
 
 ## write\_parquet
 
@@ -387,6 +433,7 @@ The crate's API documentation is on [docs.rs](<https://docs.rs/pq-glue>).
 | item | what it is |
 | --- | --- |
 | `pq_glue::concat(inputs: &[PathBuf], output: &Path) -> Result<u64>` | concatenate the inputs into `output`, returning the rows written |
+| `pq_glue::concat_many(jobs: &[(Vec<PathBuf>, PathBuf)]) -> Vec<Result<u64>>` | each job's inputs concatenated into its output, as `concat` does, the jobs in parallel on rayon (feature `parallel`) |
 | `pq_glue::Error` | the errors `concat` returns: `NoInputs`, `OutputIsInput`, `Incompatible`, `Io`, `Parquet`, `Footer` |
 | `pq_glue::footer::restore_column_orders` | rewrite a file's footer column orders in place |
 
@@ -401,7 +448,7 @@ fn main() -> pq_glue::Result<()> {
 }
 ```
 
-The `python` feature builds the Python extension module; it is only for maturin.
+The `parallel` feature adds `concat_many` (and rayon). The `python` feature builds the Python extension module; it is only for maturin.
 
 # Start here
 

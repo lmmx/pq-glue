@@ -28,6 +28,15 @@ The output has both files' rows, in order, and one row group per input row group
 2
 ```
 
+Many concatenations can be done in one call: each job is a `concat`, with the same output, and the jobs run in parallel. `concat_many` returns each job's rows:
+
+```pycon
+>>> pq_glue.concat_many([(["a.parquet", "b.parquet"], "ab2.parquet"), (["b.parquet"], "b2.parquet")])
+[3, 1]
+>>> open("ab2.parquet", "rb").read() == open("ab.parquet", "rb").read()
+True
+```
+
 Files with different schemas are refused, and no output is written:
 
 ```pycon

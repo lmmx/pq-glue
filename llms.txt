@@ -32,8 +32,8 @@ version of a page of https://lmmx.github.io/pq-glue/.
 ## Reference
 
 - [Reference](<https://lmmx.github.io/pq-glue/reference/index.md>): pq-glue's API in Python and in Rust.
-- [pq\_glue (Python)](<https://lmmx.github.io/pq-glue/reference/api/pq_glue/index.md>): The pq_glue Python package: concat and its errors.
-- [pq-glue (Rust)](<https://lmmx.github.io/pq-glue/reference/rust/index.md>): The pq-glue Rust crate: concat, Error and the footer module.
+- [pq\_glue (Python)](<https://lmmx.github.io/pq-glue/reference/api/pq_glue/index.md>): The pq_glue Python package: concat, concat_many, write_parquet and their errors.
+- [pq-glue (Rust)](<https://lmmx.github.io/pq-glue/reference/rust/index.md>): The pq-glue Rust crate: concat, concat_many, Error and the footer module.
 
 ## Start here
 

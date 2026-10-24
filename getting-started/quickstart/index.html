@@ -973,6 +973,13 @@
 <span class="gp">&gt;&gt;&gt; </span><span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="s2">"ab.parquet"</span><span class="p">)</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">num_row_groups</span>
 <span class="go">2</span>
 </code></pre></div>
+<p>Many concatenations can be done in one call: each job is a <code>concat</code>, with the same
+output, and the jobs run in parallel. <code>concat_many</code> returns each job's rows:</p>
+<div class="language-pycon highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">pq_glue</span><span class="o">.</span><span class="n">concat_many</span><span class="p">([([</span><span class="s2">"a.parquet"</span><span class="p">,</span> <span class="s2">"b.parquet"</span><span class="p">],</span> <span class="s2">"ab2.parquet"</span><span class="p">),</span> <span class="p">([</span><span class="s2">"b.parquet"</span><span class="p">],</span> <span class="s2">"b2.parquet"</span><span class="p">)])</span>
+<span class="go">[3, 1]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">open</span><span class="p">(</span><span class="s2">"ab2.parquet"</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span> <span class="o">==</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"ab.parquet"</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<span class="go">True</span>
+</code></pre></div>
 <p>Files with different schemas are refused, and no output is written:</p>
 <div class="language-pycon highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">other</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">table</span><span class="p">({</span><span class="s2">"id"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"Q4"</span><span class="p">]})</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">pq</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s2">"c.parquet"</span><span class="p">)</span>
