@@ -119,21 +119,64 @@ Confirmed:
   (levels and encoded pages): about 550 MB above the table here, at one thread about
   190–220 MB. pyarrow streams a row group at a time and holds next to nothing.
 
+- **Rows, all writers:** Polars reads the same frame from every output above, #45's and
+  pq-glue's without CDC included.
+
+**Memory against workers** (`max_workers`, a pool of the write's own; 3 runs, median):
+
+| workers | genson's defaults: wall / CPU / RSS above | Hub settings: wall / CPU / RSS above |
+|---|---|---|
+| 1 | 5.03 s / 4.9 s / 228 MB | 7.42 s / 7.2 s / 198 MB |
+| 2 | 3.25 s / 5.7 s / 390 MB | 4.48 s / 7.8 s / 322 MB |
+| 3 | 2.27 s / 5.7 s / 496 MB | 3.59 s / 7.8 s / 441 MB |
+| 4 | 1.76 s / 5.9 s / 546 MB | 2.59 s / 7.9 s / 529 MB |
+
+The same file at every worker count (`dc1a4644…`, `463d7838…`). Memory goes up by a
+row group in flight a worker (110–160 MB for these 158,708-row groups); CPU stays
+nearly flat, so the workers buy wall time, not extra work.
+
+**Deduplication**, of a next release written by the same writer, by a store holding
+this one: the bytes of the new file already in the old, by Parquet page (offset index)
+and by Xet-style content-defined chunks of the file's bytes (gear hash, 8 KiB minimum,
+64 KiB average, 128 KiB maximum; a stand-in for the Hub's store, not it). Two next
+releases:
+
+- **churn spread out:** every 97th entity dropped, a value changed in every 211th row.
+- **churn in one place:** a contiguous 1% of rows dropped (at 40%), a value changed in
+  a contiguous 0.5% (at 70%).
+
+| writer | spread: pages / chunks reused | in one place: pages / chunks reused |
+|---|---|---|
+| pyarrow, CDC (wikidata-pq master) | 0.05% / 0.5% | 50.8% / 45.0% |
+| pyarrow, a row group per thread, CDC (#45) | 0.05% / 0.5% | 50.8% / 45.0% |
+| pq-glue, CDC | 0.03% / 0.5% | 50.9% / 47.8% |
+| pq-glue, no CDC | 0.03% / 0.0% | 31.0% / 32.0% |
+
+- pq-glue's chunking keeps what pyarrow's does, a little more by bytes.
+- Churn spread through every page defeats every writer, CDC or not: no page is left as
+  it was.
+- In one place, about half is reused, not the 98% unchanged: row groups are cut by row
+  count, so each row group after the edit starts at another row, and with it every
+  page. CDC resynchronises within a row group, not across their boundaries. (A lever
+  for later: row groups cut where the content says, not by count.)
+- pyarrow's CDC files have 6,782 pages to pq-glue's 2,138: pyarrow also ends a page at
+  20,000 rows, which genson's writer does not (data pages end at the size limit).
+
+**The engines**: `write_parquet(engine="native" | "parallel" | "pyarrow")`, in
+python/pq_glue/_write.py, tested: "native" and "parallel" write the same file at any
+worker count (with and without CDC); "pyarrow" on 4 threads writes the column chunks,
+row groups, sorting columns, `created_by` and format version of pyarrow on one. All
+engines round-trip the test tables value for value, declare the sorting columns, and
+reject what they lack (`adaptive_dictionary` for "pyarrow", `max_workers` for
+"native").
+
 Hypotheses, not yet measured:
 
-- That memory scales with the row groups in flight, so a `max_workers` bound trades it
-  for speed in steps (to measure: 1, 2, 3, 4 workers).
 - Why genson 1.3.3's wheel takes 1.8× the time and CPU of the same code, giving the
-  same bytes, in pq-glue: its build (profile, features) or its process (mimalloc,
-  which genson-core links; Polars' thread pool beside rayon's). Not the code. No
-  allocator is changed here.
-
-Under way:
-
-- Rows and footers of the remaining outputs (without CDC; #45's).
-- Deduplication: how much of a next release (every 97th entity dropped, a value
-  changed in every 211th row) a store holding this one already has, by Parquet page and
-  by Xet-style content-defined chunks of the file's bytes, for each writer with CDC.
+  same bytes, in pq-glue. The release profiles are the same (codegen-units 1, thin LTO,
+  opt-level 2). genson-core installs mimalloc as the global allocator; pq-glue uses the
+  system allocator. To settle without changing either allocator: polars-genson built
+  on pq-glue's writer runs the moved code in genson's own process.
 
 ## Missing
 
@@ -142,10 +185,9 @@ Under way:
   batches). For a table or a frame that costs nothing (the buffers are taken over);
   for a lazy record batch reader it holds the stream. To do: encode row groups as the
   stream yields them, sampling the dictionary from the first row group.
-- The engines: `engine=` and `max_workers=` on `write_parquet` (and `max_workers` in
-  `WriteOptions`), the `pyarrow` engine as an optional extra.
-- polars-genson calling `pq_glue::write::write_batches`, its writer removed, its tests
-  passing and its output byte for byte the same. Publishing order: genson-core is on
+- polars-genson calling `pq_glue::write::write_batches` (branch
+  `feat/pq-glue-writer`: its writer removed, genson-core's Parquet tests passing),
+  its output byte for byte the same and its speed, to measure. Publishing order: genson-core is on
   crates.io, so the pq-glue crate (with `write`) must be published first.
 - wikidata-pq's sort on `pq_glue.write_parquet`, measured on the CI benchmark.
 - User documentation (README, API docs, "which engine should I use"), from what is
