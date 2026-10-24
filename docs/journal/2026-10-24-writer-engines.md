@@ -177,13 +177,21 @@ settings, the sort took 18.13 s → 13.74 s (−24.2%), wall with finalise −13
 passed, peak RSS of all processes 3.50 → 3.64 GB (inside the noise), finalise CPU
 +1.8%. The same PR with pyarrow on threads, glued, had measured −21.4%.
 
-Hypotheses, not yet measured:
+**polars-genson on this writer** (lmmx/polars-genson#302: genson-core's `parquet`
+feature calling `write_batches`, genson's copy removed), its `write_parquet` of the
+table, 3 runs, median:
 
-- Why genson 1.3.3's wheel takes 1.8× the time and CPU of the same code, giving the
-  same bytes, in pq-glue. The release profiles are the same (codegen-units 1, thin LTO,
-  opt-level 2). genson-core installs mimalloc as the global allocator; pq-glue uses the
-  system allocator. To settle without changing either allocator: polars-genson built
-  on pq-glue's writer runs the moved code in genson's own process.
+| | wall | CPU | RSS above the table |
+|---|---|---|---|
+| polars-genson 1.3.3 | 2.91 s | 9.1 s | 870 MB |
+| polars-genson on pq-glue | 2.47 s | 7.6 s | 887 MB |
+| pq-glue's wheel, the same call | 1.68 s | 5.7 s | 554 MB |
+
+All three files the same, byte for byte (`dc1a46443650e613…`): the move costs genson
+nothing. The same code is slower and holds about 330 MB more in genson's process than in
+pq-glue's, so the gap measured above was genson's process, not the code. The likeliest
+cause is the global allocator (genson-core installs mimalloc, pq-glue uses the
+system's); not confirmed, and not changed here.
 
 ## Missing
 
@@ -192,9 +200,7 @@ Hypotheses, not yet measured:
   batches). For a table or a frame that costs nothing (the buffers are taken over);
   for a lazy record batch reader it holds the stream. To do: encode row groups as the
   stream yields them, sampling the dictionary from the first row group.
-- polars-genson calling `pq_glue::write::write_batches` (branch
-  `feat/pq-glue-writer`: its writer removed, genson-core's Parquet tests passing),
-  its output byte for byte the same and its speed, to measure. Publishing order: genson-core is on
-  crates.io, so the pq-glue crate (with `write`) must be published first.
+- Publishing order: genson-core is on crates.io, so the pq-glue crate (with `write`)
+  must be published before polars-genson#302 can depend on a version of it.
 - User documentation (README, API docs, "which engine should I use"), from what is
   confirmed here once the engines exist.
