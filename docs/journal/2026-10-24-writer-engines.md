@@ -170,6 +170,13 @@ engines round-trip the test tables value for value, declare the sorting columns,
 reject what they lack (`adaptive_dictionary` for "pyarrow", `max_workers` for
 "native").
 
+**In wikidata-pq's sort** (its CI benchmark, quick tier, 3 forward/reverse rounds on
+GitHub's 4-core runners; wikidata-pq #45 against #44, which sorts with pyarrow on one
+thread): with each key written by `write_parquet(engine="parallel")` and the Hub
+settings, the sort took 18.13 s → 13.74 s (−24.2%), wall with finalise −13.6%, parity
+passed, peak RSS of all processes 3.50 → 3.64 GB (inside the noise), finalise CPU
++1.8%. The same PR with pyarrow on threads, glued, had measured −21.4%.
+
 Hypotheses, not yet measured:
 
 - Why genson 1.3.3's wheel takes 1.8× the time and CPU of the same code, giving the
@@ -189,6 +196,5 @@ Hypotheses, not yet measured:
   `feat/pq-glue-writer`: its writer removed, genson-core's Parquet tests passing),
   its output byte for byte the same and its speed, to measure. Publishing order: genson-core is on
   crates.io, so the pq-glue crate (with `write`) must be published first.
-- wikidata-pq's sort on `pq_glue.write_parquet`, measured on the CI benchmark.
 - User documentation (README, API docs, "which engine should I use"), from what is
   confirmed here once the engines exist.
