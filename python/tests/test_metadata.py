@@ -49,3 +49,29 @@ def test_page_index(tmp_path):
     want = pa.concat_tables(pq.read_table(p, filters=[("n", ">", 10)]) for p in inputs)
     assert same(pq.read_table(out, filters=[("n", ">", 10)]), want)
     assert pq.ParquetFile(out).metadata.row_group(0).column(0).has_offset_index
+
+
+def test_writer_and_sorting_columns(tmp_path):
+    """The inputs' created_by, format version and row groups' sorting columns are kept."""
+    sorting = [pq.SortingColumn(0)]
+    inputs = [write(tmp_path, i, 120, sorting_columns=sorting) for i in range(3)]
+    out = tmp_path / "out.parquet"
+    pq_glue.concat(inputs, out)
+    got, want = pq.read_metadata(out), pq.read_metadata(inputs[0])
+    assert got.created_by == want.created_by
+    assert got.format_version == want.format_version
+    for g in range(got.num_row_groups):
+        assert got.row_group(g).sorting_columns == tuple(sorting)
+
+
+def test_sorting_columns_differ(tmp_path):
+    """Row groups declaring different sorting columns are glued declaring none."""
+    inputs = [
+        write(tmp_path, 0, 120, sorting_columns=[pq.SortingColumn(0)]),
+        write(tmp_path, 1, 120),
+    ]
+    out = tmp_path / "out.parquet"
+    pq_glue.concat(inputs, out)
+    got = pq.read_metadata(out)
+    for g in range(got.num_row_groups):
+        assert got.row_group(g).sorting_columns == ()
