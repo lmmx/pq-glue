@@ -16,6 +16,17 @@ release bump_level="patch":
     sed -i "0,/^version = \".*\"/s//version = \"$new_version\"/" Cargo.toml
     cargo update --workspace --quiet
 
+    # 📝 Writing the crate's changelog with release-plz: CI publishes the crate to crates.io
+    # at this version (the crates job in CI.yml)
+    release-plz update --allow-dirty
+    for got in "$(uv version --short)" "$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="pq-glue") | .version')"; do
+        if [[ "$got" != "$new_version" ]]; then
+            # ❌ A version changed to $got, not $new_version: release-plz moved it. Nothing is committed
+            git checkout -- . && git clean -fdq
+            exit 1
+        fi
+    done
+
     # 📦 Stage all changes (including the version bump)
     git add --all
 
