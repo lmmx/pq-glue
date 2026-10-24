@@ -37,8 +37,10 @@ tempfile = "3.23.0"
 
 [features]
 default = []
+# Many concatenations at once (`pq_glue::concat_many`), on rayon
+parallel = ["dep:rayon"]
 # The Python extension module (built by maturin, see pyproject.toml)
-python = ["arrow-array/ffi", "dep:pyo3", "write"]
+python = ["arrow-array/ffi", "dep:pyo3", "parallel", "write"]
 # Arrow record batches written to Parquet (`pq_glue::write`), their row groups' columns
 # encoded in parallel
 write = [

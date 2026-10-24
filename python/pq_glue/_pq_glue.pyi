@@ -36,6 +36,42 @@ def concat(sources: Sequence[str | PathLike[str]], dst: str | PathLike[str]) -> 
         If a source cannot be opened or `dst` cannot be written.
     """
 
+def concat_many(
+    jobs: Sequence[tuple[Sequence[str | PathLike[str]], str | PathLike[str]]],
+) -> list[int]:
+    """Concatenate many sets of Parquet files at once, each into its own file.
+
+    Each job, `(sources, dst)`, is a `concat(sources, dst)`, with the same output; the
+    jobs run in parallel, on a thread per CPU, with the GIL released for the whole
+    batch. For many small concatenations (each a few files), whose time goes on opening
+    files and writing footers more than on bytes copied, one call is quicker than a
+    `concat` per job.
+
+    Parameters
+    ----------
+    jobs
+        `(sources, dst)` tuples, as `concat` takes them. No two jobs may have the same
+        `dst`, nor one job's `dst` be another's source.
+
+    Returns
+    -------
+    list[int]
+        The number of rows written for each job, in the jobs' order.
+
+    Raises
+    ------
+    ValueError
+        For the first job (in the jobs' order) that fails as `concat` raises ValueError,
+        naming its `dst`.
+    OSError
+        For the first job that fails as `concat` raises OSError, naming its `dst`.
+
+    Notes
+    -----
+    Every job runs, whether or not another fails: a job that fails leaves no `dst`, as
+    `concat` leaves none, and the others' are written.
+    """
+
 def write_parquet(
     data: object,
     path: str | PathLike[str],

@@ -50,6 +50,24 @@ pub fn concat(inputs: &[PathBuf], output: &Path) -> Result<u64> {
     result
 }
 
+/// Concatenate each job's inputs, in order, into its output, as [`concat`](concat())
+/// does, the jobs run in parallel on the calling rayon pool (by default one thread per
+/// CPU), and return each job's rows written or error, in the jobs' order (feature
+/// `parallel`).
+///
+/// For many small concatenations (a dataset's partitions, each a few files), whose time
+/// goes on opening files and writing footers more than on bytes copied. Each job's output
+/// is the same as `concat`'s, and the jobs are independent: one that fails leaves no
+/// output of its own, and the others are written all the same. No two jobs may have the
+/// same output, nor one job's output be another's input.
+#[cfg(feature = "parallel")]
+pub fn concat_many(jobs: &[(Vec<PathBuf>, PathBuf)]) -> Vec<Result<u64>> {
+    use rayon::prelude::*;
+    jobs.par_iter()
+        .map(|(inputs, output)| concat(inputs, output))
+        .collect()
+}
+
 /// What a glued file's footer declares besides the first input's schema, key-value
 /// metadata and column orders: where the inputs agree on them, their `created_by`,
 /// format version and row groups' sorting columns; parquet-rs's own `created_by` and
