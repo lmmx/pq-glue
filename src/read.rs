@@ -1,11 +1,14 @@
 //! Parquet read to Arrow record batches, its row groups decoded in parallel (feature
 //! `read`).
 //!
-//! The file is read into memory once, and each row group is decoded from it by a reader
-//! of its own on rayon (readers of one `File` would share its offset), into one record
-//! batch. The batches are returned in the order asked for, with the file's Arrow schema
-//! (from its `ARROW:schema` metadata, as the writer stored it).
+//! Each row group is decoded by a reader of its own on rayon, into one record batch. The
+//! whole file is read into memory once when every row group is asked for; for some of
+//! them, each reader opens the file itself and reads only its row group's column chunks
+//! (readers of one `File` would share its offset). The batches are returned in the order
+//! asked for, with the file's Arrow schema (from its `ARROW:schema` metadata, as the
+//! writer stored it).
 
+use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -23,9 +26,19 @@ use crate::error::{Error, Result};
 /// `row_groups` (all of them if `None`), in the order given, each row group decoded in
 /// parallel.
 pub fn read(path: &Path, row_groups: Option<&[usize]>) -> Result<(SchemaRef, Vec<RecordBatch>)> {
-    let file = Bytes::from(std::fs::read(path).map_err(Error::io(path))?);
-    let meta = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new())
-        .map_err(Error::parquet(path))?;
+    // The whole file in memory for a whole read; only the footer for some row groups
+    let whole = match row_groups {
+        None => Some(Bytes::from(std::fs::read(path).map_err(Error::io(path))?)),
+        Some(_) => None,
+    };
+    let meta = match &whole {
+        Some(bytes) => ArrowReaderMetadata::load(bytes, ArrowReaderOptions::new()),
+        None => ArrowReaderMetadata::load(
+            &File::open(path).map_err(Error::io(path))?,
+            ArrowReaderOptions::new(),
+        ),
+    }
+    .map_err(Error::parquet(path))?;
     let n = meta.metadata().num_row_groups();
     let groups: Vec<usize> = match row_groups {
         Some(groups) => groups.to_vec(),
@@ -41,19 +54,22 @@ pub fn read(path: &Path, row_groups: Option<&[usize]>) -> Result<(SchemaRef, Vec
     let schema = Arc::clone(meta.schema());
     let batches = groups
         .par_iter()
-        .map(|&g| read_row_group(path, &file, &meta, g))
+        .map(|&g| match &whole {
+            Some(bytes) => read_row_group(path, bytes.clone(), &meta, g),
+            None => read_row_group(path, File::open(path).map_err(Error::io(path))?, &meta, g),
+        })
         .collect::<Result<Vec<_>>>()?;
     Ok((schema, batches))
 }
 
-fn read_row_group(
+fn read_row_group<R: parquet::file::reader::ChunkReader + 'static>(
     path: &Path,
-    file: &Bytes,
+    file: R,
     meta: &ArrowReaderMetadata,
     g: usize,
 ) -> Result<RecordBatch> {
     let rows = meta.metadata().row_group(g).num_rows() as usize;
-    let reader = ParquetRecordBatchReaderBuilder::new_with_metadata(file.clone(), meta.clone())
+    let reader = ParquetRecordBatchReaderBuilder::new_with_metadata(file, meta.clone())
         .with_row_groups(vec![g])
         .with_batch_size(rows.max(1))
         .build()
