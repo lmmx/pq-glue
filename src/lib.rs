@@ -27,6 +27,8 @@ pub mod footer;
 mod input;
 #[cfg(feature = "python")]
 mod python;
+#[cfg(feature = "write")]
+pub mod write;
 
 pub use concat::concat;
 pub use error::{Error, Result};
