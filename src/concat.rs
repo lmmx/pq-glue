@@ -1,9 +1,11 @@
 //! Concatenation by copying encoded row groups.
 
 use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use bytes::Bytes;
 use parquet::basic::{ColumnOrder, SortOrder};
 use parquet::bloom_filter::Sbbf;
 use parquet::column::writer::ColumnCloseResult;
@@ -20,26 +22,63 @@ use crate::input::{check_compatible, Input};
 ///
 /// Every input must have the first one's Parquet schema, column orders and key-value
 /// metadata, or nothing is written. `output` is created (or truncated) and is removed
-/// if the copy fails part way; it must not be one of the inputs.
+/// if the copy fails part way; it must not be one of the inputs. When no input is larger
+/// than 16 MiB, the inputs are read whole into memory, in one read each.
 pub fn concat(inputs: &[PathBuf], output: &Path) -> Result<u64> {
+    concat_reading(inputs, output, READ_WHOLE_BYTES)
+}
+
+/// [`concat`](concat()), the inputs read whole if none is larger than `read_whole` bytes.
+fn concat_reading(inputs: &[PathBuf], output: &Path, read_whole: u64) -> Result<u64> {
     if inputs.is_empty() {
         return Err(Error::NoInputs);
     }
     if inputs.iter().any(|p| p.as_path() == output) {
         return Err(Error::OutputIsInput(output.to_path_buf()));
     }
-    let inputs = inputs
+    let files = inputs
         .iter()
-        .map(|p| Input::open(p))
+        .map(|p| {
+            let file = File::open(p).map_err(Error::io(p))?;
+            let len = file.metadata().map_err(Error::io(p))?.len();
+            Ok((p, file, len))
+        })
         .collect::<Result<Vec<_>>>()?;
-    check_compatible(&inputs)?;
+    if files.iter().all(|&(_, _, len)| len <= read_whole) {
+        let inputs = files
+            .into_iter()
+            .map(|(p, mut file, len)| {
+                let mut bytes = vec![0; len as usize];
+                file.read_exact(&mut bytes).map_err(Error::io(p))?;
+                Input::new(p.clone(), Bytes::from(bytes))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        glue(&inputs, output)
+    } else {
+        let inputs = files
+            .into_iter()
+            .map(|(p, file, _)| Input::new(p.clone(), file))
+            .collect::<Result<Vec<_>>>()?;
+        glue(&inputs, output)
+    }
+}
+
+/// Inputs read whole, in one read each, when none is larger than this: read from the
+/// file, each footer, page index, bloom filter and column chunk takes its own seek and
+/// read on a duplicate of the file's handle (parquet-rs's `ChunkReader` for `File`),
+/// and for a small file those system calls take longer than the bytes copied.
+const READ_WHOLE_BYTES: u64 = 16 << 20;
+
+/// Glue `inputs`, open, into `output` (see [`concat`](concat())).
+fn glue<R: ChunkReader>(inputs: &[Input<R>], output: &Path) -> Result<u64> {
+    check_compatible(inputs)?;
     let footer = Footer {
-        created_by: created_by(&inputs),
-        version: writer_version(&inputs),
-        sorting_columns: sorting_columns(&inputs),
+        created_by: created_by(inputs),
+        version: writer_version(inputs),
+        sorting_columns: sorting_columns(inputs),
     };
     let result = Glue::create(output, &inputs[0], footer).and_then(|mut glue| {
-        for input in &inputs {
+        for input in inputs {
             glue.append(input)?;
         }
         glue.finish()
@@ -48,6 +87,24 @@ pub fn concat(inputs: &[PathBuf], output: &Path) -> Result<u64> {
         let _ = std::fs::remove_file(output);
     }
     result
+}
+
+/// Concatenate each job's inputs, in order, into its output, as [`concat`](concat())
+/// does, the jobs run in parallel on the calling rayon pool (by default one thread per
+/// CPU), and return each job's rows written or error, in the jobs' order (feature
+/// `parallel`).
+///
+/// For many small concatenations (a dataset's partitions, each a few files), whose time
+/// goes on opening files and writing footers more than on bytes copied. Each job's output
+/// is the same as `concat`'s, and the jobs are independent: one that fails leaves no
+/// output of its own, and the others are written all the same. No two jobs may have the
+/// same output, nor one job's output be another's input.
+#[cfg(feature = "parallel")]
+pub fn concat_many(jobs: &[(Vec<PathBuf>, PathBuf)]) -> Vec<Result<u64>> {
+    use rayon::prelude::*;
+    jobs.par_iter()
+        .map(|(inputs, output)| concat(inputs, output))
+        .collect()
 }
 
 /// What a glued file's footer declares besides the first input's schema, key-value
@@ -183,4 +240,57 @@ fn sorting_columns<R>(inputs: &[Input<R>]) -> Option<Vec<SortingColumn>> {
         .all(|rg| rg.sorting_columns() == first.as_ref())
         .then_some(first)
         .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use arrow_array::{Int64Array, RecordBatch, StringArray};
+    use parquet::arrow::ArrowWriter;
+    use parquet::file::properties::{EnabledStatistics, WriterProperties};
+
+    use super::*;
+
+    fn write(path: &Path, i: i64) {
+        let batch = RecordBatch::try_from_iter([
+            (
+                "id",
+                Arc::new(StringArray::from_iter_values(
+                    (0..50).map(|r| format!("Q{r}")),
+                )) as arrow_array::ArrayRef,
+            ),
+            ("n", Arc::new(Int64Array::from_iter_values(i..i + 50))),
+        ])
+        .unwrap();
+        let props = WriterProperties::builder()
+            .set_max_row_group_row_count(Some(20))
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .set_bloom_filter_enabled(true)
+            .build();
+        let mut w =
+            ArrowWriter::try_new(File::create(path).unwrap(), batch.schema(), Some(props)).unwrap();
+        w.write(&batch).unwrap();
+        w.close().unwrap();
+    }
+
+    #[test]
+    fn inputs_read_whole_or_from_the_file_glue_the_same() {
+        let dir = tempfile::tempdir().unwrap();
+        let inputs: Vec<_> = (0..3)
+            .map(|i| {
+                let p = dir.path().join(format!("in_{i}.parquet"));
+                write(&p, i * 100);
+                p
+            })
+            .collect();
+        let whole = dir.path().join("whole.parquet");
+        let from_file = dir.path().join("from_file.parquet");
+        assert_eq!(concat_reading(&inputs, &whole, u64::MAX).unwrap(), 150);
+        assert_eq!(concat_reading(&inputs, &from_file, 0).unwrap(), 150);
+        assert_eq!(
+            std::fs::read(&whole).unwrap(),
+            std::fs::read(&from_file).unwrap()
+        );
+    }
 }

@@ -1,6 +1,6 @@
 //! The `pq_glue._pq_glue` Python extension module (feature `python`, built by maturin).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use arrow_array::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
 use arrow_array::{RecordBatch, RecordBatchReader};
@@ -30,6 +30,27 @@ impl From<Error> for PyErr {
 #[pyo3(name = "concat")]
 fn py_concat(py: Python<'_>, sources: Vec<PathBuf>, dst: PathBuf) -> PyResult<u64> {
     Ok(py.detach(|| crate::concat(&sources, &dst))?)
+}
+
+/// Concatenate each job's sources into its destination, the jobs in parallel; returns
+/// each job's rows written. See `pq_glue/_pq_glue.pyi`.
+#[pyfunction]
+#[pyo3(name = "concat_many")]
+fn py_concat_many(py: Python<'_>, jobs: Vec<(Vec<PathBuf>, PathBuf)>) -> PyResult<Vec<u64>> {
+    let results = py.detach(|| crate::concat_many(&jobs));
+    jobs.iter()
+        .zip(results)
+        .map(|((_, dst), result)| result.map_err(|e| job_error(dst, e)))
+        .collect()
+}
+
+/// A failed job's error, as `concat` raises it, naming the job's destination.
+fn job_error(dst: &Path, e: Error) -> PyErr {
+    let message = format!("{} not written: {e}", dst.display());
+    match e {
+        Error::Io { .. } => PyOSError::new_err(message),
+        _ => PyValueError::new_err(message),
+    }
 }
 
 /// The stream of `data`, any object of the Arrow PyCapsule interface
@@ -199,6 +220,7 @@ fn py_write_parquet(
 #[pymodule]
 fn _pq_glue(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_concat, m)?)?;
+    m.add_function(wrap_pyfunction!(py_concat_many, m)?)?;
     m.add_function(wrap_pyfunction!(py_write_parquet, m)?)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())

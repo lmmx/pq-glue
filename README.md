@@ -47,6 +47,16 @@ let rows = pq_glue::concat(&inputs, Path::new("ab.parquet"))?;
 
 `concat` returns the number of rows written.
 
+Many concatenations at once, each a `concat` with the same output, run in parallel with
+the GIL released (in Rust, `pq_glue::concat_many`, feature `parallel`):
+
+```python
+rows = pq_glue.concat_many([(["a.parquet", "b.parquet"], "ab.parquet"), (["c.parquet"], "c2.parquet")])
+```
+
+For many small concatenations, whose time goes on opening files and writing footers,
+one call is quicker than a `concat` per job.
+
 ## The output file
 
 The output file contains:

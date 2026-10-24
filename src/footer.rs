@@ -11,9 +11,9 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use parquet::basic::ColumnOrder;
+use parquet::file::metadata::ParquetMetaDataReader;
 
 use crate::error::{Error, Result};
-use crate::input::read_metadata;
 
 /// A `ColumnOrder` union in Thrift's compact encoding: a field header (field 1,
 /// TYPE_ORDER, or field 2, IEEE_754_TOTAL_ORDER, each an empty struct), the empty
@@ -29,8 +29,8 @@ const IEEE_754: [u8; 3] = [0x2C, 0x00, 0x00];
 /// min/max without the NaN counts that order requires. The writer's API has no way to
 /// set the orders, and the two encodings are the same length, so the footer is patched
 /// in place: its `column_orders` list is its last field, each element checked to be
-/// one of the two before it is rewritten, and the footer is read back to check it has
-/// exactly `orders`. Nothing else in the file changes.
+/// one of the two before it is rewritten, and the footer written is decoded to check it
+/// has exactly `orders`. Nothing else in the file changes.
 pub fn restore_column_orders(path: &Path, orders: &[ColumnOrder]) -> Result<()> {
     let mut want = Vec::with_capacity(orders.len());
     for order in orders {
@@ -87,8 +87,7 @@ pub fn restore_column_orders(path: &Path, orders: &[ColumnOrder]) -> Result<()> 
     f.write_all(&footer[elems_start..elems_end])
         .map_err(io(path))?;
     drop(f);
-    let file = std::fs::File::open(path).map_err(io(path))?;
-    let got = read_metadata(path, &file)?;
+    let got = ParquetMetaDataReader::decode_metadata(&footer).map_err(Error::parquet(path))?;
     if got.file_metadata().column_orders().map(Vec::as_slice) != Some(orders) {
         return Err(Error::footer(
             path,

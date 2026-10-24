@@ -20,6 +20,9 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! With the `parallel` feature, `concat_many` runs many such concatenations at once,
+//! on rayon.
 
 mod concat;
 mod error;
@@ -31,4 +34,6 @@ mod python;
 pub mod write;
 
 pub use concat::concat;
+#[cfg(feature = "parallel")]
+pub use concat::concat_many;
 pub use error::{Error, Result};

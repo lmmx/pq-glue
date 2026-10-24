@@ -25,6 +25,8 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Tests
         run: cargo test
+      - name: Tests (parallel)
+        run: cargo test --features parallel
 
   get-python-versions:
     runs-on: ubuntu-latest

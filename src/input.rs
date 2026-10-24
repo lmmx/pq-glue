@@ -16,13 +16,6 @@ pub(crate) struct Input<R = File> {
     pub metadata: ParquetMetaData,
 }
 
-impl Input {
-    pub fn open(path: &Path) -> Result<Self> {
-        let file = File::open(path).map_err(Error::io(path))?;
-        Input::new(path.to_path_buf(), file)
-    }
-}
-
 impl<R: ChunkReader> Input<R> {
     pub fn new(path: PathBuf, file: R) -> Result<Self> {
         let metadata = read_metadata(&path, &file)?;
