@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/lmmx/pq-glue/compare/v0.1.0...v0.2.0) - 2026-10-24
+
+### <!-- 1 -->Features
+
+- read_parquet, a file's row groups decoded in parallel to Arrow (the read feature) ([#4](https://github.com/lmmx/pq-glue/pull/4))
+- concat_many, many concatenations in one call; small inputs read whole ([#3](https://github.com/lmmx/pq-glue/pull/3))
+- write Arrow data to Parquet (polars-genson's writer, moved) with native, parallel and pyarrow engines ([#2](https://github.com/lmmx/pq-glue/pull/2))
+- the output keeps the inputs' created_by, format version and sorting columns ([#1](https://github.com/lmmx/pq-glue/pull/1))
+
+### <!-- 7 -->Build System and CI
+
+- the crate published to crates.io by CI with Trusted Publishing, its changelog written by just release (release-plz) ([#5](https://github.com/lmmx/pq-glue/pull/5))
+
+### <!-- 9 -->Other
+
+- ship recipe's last message prints instead of running gh, taplo skips target/
+
 ## [0.1.0](https://github.com/lmmx/pq-glue/releases/tag/v0.1.0) - 2026-10-23
 
 ### <!-- 1 -->Features
