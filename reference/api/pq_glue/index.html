@@ -706,6 +706,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pq_glue.read_parquet" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;read_parquet
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pq_glue.write_parquet" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1073,6 +1084,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pq_glue.read_parquet" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;read_parquet
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pq_glue.write_parquet" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1123,9 +1145,10 @@
 <a id="pq_glue"></a>
     <div class="doc doc-contents first">
 
-        <p>Glue Parquet files together, and write Arrow data to Parquet.</p>
+        <p>Glue Parquet files together, and write Arrow data to Parquet and read it back.</p>
 <p><code>concat</code> copies encoded row groups without decoding them (<code>concat_many</code> for many
-concatenations at once); <code>write_parquet</code> writes Arrow data with a choice of engines.</p>
+concatenations at once); <code>write_parquet</code> writes Arrow data with a choice of engines;
+<code>read_parquet</code> reads a file's row groups in parallel.</p>
 
 
 
@@ -1423,6 +1446,69 @@ naming its <code>dst</code>.</p>
   <p>Every job runs, whether or not another fails: a job that fails leaves no <code>dst</code>, as
 <code>concat</code> leaves none, and the others' are written.</p>
 </details>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="pq_glue.read_parquet" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">read_parquet</span>
+
+
+<a href="#pq_glue.read_parquet" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">read_parquet</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" title="os.PathLike" href="https://docs.python.org/3/library/os.html#os.PathLike">PathLike</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">],</span> <span class="n">row_groups</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="collections.abc.Sequence" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence">Sequence</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Read a Parquet file to a <code>pyarrow.Table</code>, each row group decoded in parallel.</p>
+<p>The table has the file's Arrow schema (from its <code>ARROW:schema</code> metadata) and one
+chunk per row group read, in the order of <code>row_groups</code> (all of them, in order, if
+None). The values are those <code>pyarrow.parquet.ParquetFile.read</code> and <code>read_row_groups</code>
+give; the file is read into memory once, then decoded by arrow-rs on every core,
+without the GIL.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError">ValueError</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the file is not Parquet, or a row group asked for is not in it.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/exceptions.html#OSError">OSError</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the file cannot be read.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
     </div>
 
