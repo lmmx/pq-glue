@@ -78,8 +78,33 @@ fn expand_typed_ree<R: RunEndIndexType>(run_array: &RunArray<R>) -> Result<Array
 /// for each leaf column encountered
 pub(crate) fn calculate_array_levels(array: &ArrayRef, field: &Field) -> Result<Vec<ArrayLevels>> {
     let mut builder = LevelInfoBuilder::try_new(field, Default::default(), array)?;
+    let groups = builder.share_rep_levels();
     builder.write(0..array.len());
-    Ok(builder.finish())
+    let mut levels = builder.finish();
+    for group in groups {
+        share_rep_levels(&mut levels, &group);
+    }
+    Ok(levels)
+}
+
+/// Gives every leaf in `group` the repetition levels computed for its first leaf.
+///
+/// The leaves of a group are the leaves under the same innermost list, reached through
+/// structs only (see [`LevelInfoBuilder::share_rep_levels`]). Every write visits all of
+/// them with the same repetition-level operations, so they would all compute the same
+/// levels, in the same representation; only the first computes them.
+fn share_rep_levels(levels: &mut [ArrayLevels], group: &[usize]) {
+    let (first, rest) = group.split_first().expect("a group has leaves");
+    let shared = match std::mem::replace(&mut levels[*first].rep_levels, LevelData::Absent) {
+        LevelData::Materialized(values) => LevelData::Shared(Arc::new(values)),
+        other => other,
+    };
+    for idx in rest {
+        debug_assert!(matches!(levels[*idx].rep_levels, LevelData::Absent));
+        debug_assert_eq!(levels[*idx].max_rep_level, levels[*first].max_rep_level);
+        levels[*idx].rep_levels = shared.clone();
+    }
+    levels[*first].rep_levels = shared;
 }
 
 /// Returns true if the DataType can be represented as a primitive parquet column,
@@ -312,6 +337,58 @@ impl LevelInfoBuilder {
         }
     }
 
+    /// Groups the leaves that will have the same repetition levels, and stops all but the
+    /// first of each group from computing them.
+    ///
+    /// A leaf's repetition levels are decided by the lists above it: one entry per value of
+    /// its innermost list (structs and nulls below that list add one entry per slot too), each
+    /// stamped by that list and the lists above it. So leaves under the same innermost list,
+    /// with only structs between, have the same repetition levels. Returns each group of two
+    /// or more such leaves as indices into [`Self::finish`]'s output. The other leaves of a
+    /// group get [`LevelData::Absent`], so every write skips them, until
+    /// [`share_rep_levels`] gives them the first leaf's levels.
+    fn share_rep_levels(&mut self) -> Vec<Vec<usize>> {
+        let mut groups = vec![];
+        let mut next_leaf = 0;
+        self.collect_rep_groups(&mut next_leaf, &mut vec![], &mut groups);
+        groups
+    }
+
+    fn collect_rep_groups(
+        &mut self,
+        next_leaf: &mut usize,
+        group: &mut Vec<usize>,
+        groups: &mut Vec<Vec<usize>>,
+    ) {
+        match self {
+            LevelInfoBuilder::Primitive(info) => {
+                if info.max_rep_level != 0 {
+                    if !group.is_empty() {
+                        info.rep_levels = LevelData::Absent;
+                    }
+                    group.push(*next_leaf);
+                }
+                *next_leaf += 1;
+            }
+            LevelInfoBuilder::Struct(children, _, _) => {
+                for child in children {
+                    child.collect_rep_groups(next_leaf, group, groups);
+                }
+            }
+            LevelInfoBuilder::List(child, _, _, _, _)
+            | LevelInfoBuilder::LargeList(child, _, _, _, _)
+            | LevelInfoBuilder::FixedSizeList(child, _, _, _)
+            | LevelInfoBuilder::ListView(child, _, _, _, _)
+            | LevelInfoBuilder::LargeListView(child, _, _, _, _) => {
+                let mut list_group = vec![];
+                child.collect_rep_groups(next_leaf, &mut list_group, groups);
+                if list_group.len() > 1 {
+                    groups.push(list_group);
+                }
+            }
+        }
+    }
+
     /// Finish this [`LevelInfoBuilder`] returning the [`ArrayLevels`] for the leaf columns
     /// as enumerated by a depth-first search
     fn finish(self) -> Vec<ArrayLevels> {
@@ -419,7 +496,10 @@ impl LevelInfoBuilder {
             // of each slot's first element is directly computable from offsets.
             child.visit_leaves(|leaf| {
                 debug_assert_eq!(leaf.max_rep_level, ctx.rep_level);
-                let rep_levels = leaf.rep_levels.materialize_mut().unwrap();
+                // None: another leaf computes this leaf's repetition levels
+                let Some(rep_levels) = leaf.rep_levels.materialize_mut() else {
+                    return;
+                };
                 let batch_len = values_end - values_start;
                 let batch_base = rep_levels.len() - batch_len;
                 for slot_offset in run_offsets.iter().take(run_offsets.len() - 1) {
@@ -456,7 +536,10 @@ impl LevelInfoBuilder {
             child.write(values_start..values_end);
 
             child.visit_leaves(|leaf| {
-                let rep_levels = leaf.rep_levels.materialize_mut().unwrap();
+                // None: another leaf computes this leaf's repetition levels
+                let Some(rep_levels) = leaf.rep_levels.materialize_mut() else {
+                    return;
+                };
 
                 if leaf.max_rep_level == ctx.rep_level {
                     // This algorithm is the same as write_list_direct.
@@ -622,7 +705,10 @@ impl LevelInfoBuilder {
             |child: &mut LevelInfoBuilder, start_idx: usize, end_idx: usize| {
                 child.write(start_idx..end_idx);
                 child.visit_leaves(|leaf| {
-                    let rep_levels = leaf.rep_levels.materialize_mut().unwrap();
+                    // None: another leaf computes this leaf's repetition levels
+                    let Some(rep_levels) = leaf.rep_levels.materialize_mut() else {
+                        return;
+                    };
                     let mut rev = rep_levels.iter_mut().rev();
                     let mut remaining = end_idx - start_idx;
 
@@ -775,7 +861,10 @@ impl LevelInfoBuilder {
             child.write(values_start..values_end);
 
             child.visit_leaves(|leaf| {
-                let rep_levels = leaf.rep_levels.materialize_mut().unwrap();
+                // None: another leaf computes this leaf's repetition levels
+                let Some(rep_levels) = leaf.rep_levels.materialize_mut() else {
+                    return;
+                };
 
                 let row_indices = (0..fixed_size)
                     .rev()
@@ -980,25 +1069,28 @@ pub(crate) enum LevelData {
     Absent,
     Materialized(Vec<i16>),
     Uniform { value: i16, count: usize },
+    // Materialized levels shared by several leaves (repetition levels, see
+    // `share_rep_levels`), read as `Materialized`
+    Shared(Arc<Vec<i16>>),
 }
 
 // Compare logical level contents rather than physical representation, so a
 // uniform run compares equal to the equivalent materialized buffer.
 impl PartialEq for LevelData {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Absent, Self::Absent) => true,
-            (Self::Materialized(a), Self::Materialized(b)) => a == b,
-            (Self::Uniform { value: v, count: n }, Self::Materialized(b))
-            | (Self::Materialized(b), Self::Uniform { value: v, count: n }) => {
-                b.len() == *n && b.iter().all(|x| x == v)
+        match (self.as_ref(), other.as_ref()) {
+            (LevelDataRef::Absent, LevelDataRef::Absent) => true,
+            (LevelDataRef::Materialized(a), LevelDataRef::Materialized(b)) => a == b,
+            (LevelDataRef::Uniform { value: v, count: n }, LevelDataRef::Materialized(b))
+            | (LevelDataRef::Materialized(b), LevelDataRef::Uniform { value: v, count: n }) => {
+                b.len() == n && b.iter().all(|x| *x == v)
             }
             (
-                Self::Uniform {
+                LevelDataRef::Uniform {
                     value: v1,
                     count: n1,
                 },
-                Self::Uniform {
+                LevelDataRef::Uniform {
                     value: v2,
                     count: n2,
                 },
@@ -1022,6 +1114,7 @@ impl LevelData {
         match self {
             Self::Absent => LevelDataRef::Absent,
             Self::Materialized(values) => LevelDataRef::Materialized(values),
+            Self::Shared(values) => LevelDataRef::Materialized(values),
             Self::Uniform { value, count } => LevelDataRef::Uniform {
                 value: *value,
                 count: *count,
@@ -1033,6 +1126,7 @@ impl LevelData {
         match self {
             Self::Absent => Self::Absent,
             Self::Materialized(values) => Self::Materialized(values[offset..offset + len].to_vec()),
+            Self::Shared(values) => Self::Materialized(values[offset..offset + len].to_vec()),
             Self::Uniform { value, .. } => Self::Uniform {
                 value: *value,
                 count: len,
@@ -1065,8 +1159,9 @@ impl LevelData {
                 *uniform_count += count;
             }
             // A different value breaks the uniform representation. Materialize
-            // the existing run, then append the new run to the buffer.
-            Self::Uniform { .. } => {
+            // the existing run, then append the new run to the buffer. Shared levels
+            // are copied first, so the other leaves keep theirs.
+            Self::Uniform { .. } | Self::Shared(_) => {
                 let values = self.materialize_mut().unwrap();
                 values.extend(std::iter::repeat_n(value, count));
             }
@@ -1088,6 +1183,7 @@ impl LevelData {
         match self {
             Self::Absent => None,
             Self::Materialized(values) => Some(values),
+            Self::Shared(values) => Some(Arc::make_mut(values)),
             Self::Uniform { value, count } => {
                 let values = vec![*value; *count];
                 *self = Self::Materialized(values);
@@ -2849,5 +2945,224 @@ mod tests {
             };
             assert_eq!(&levels[i], &expected, "leaf {i} mismatch");
         }
+    }
+
+    /// The levels computed with repetition levels shared within each list's leaves, as
+    /// [`calculate_array_levels`] computes them, against every leaf computing its own.
+    fn assert_shared_rep_levels_match(field: &Field, array: &ArrayRef) -> usize {
+        let shared = calculate_array_levels(array, field).unwrap();
+
+        let mut builder = LevelInfoBuilder::try_new(field, Default::default(), array).unwrap();
+        builder.write(0..array.len());
+        let own = builder.finish();
+
+        assert_eq!(shared.len(), own.len());
+        let kind = |levels: &LevelData| match levels.as_ref() {
+            LevelDataRef::Absent => 0,
+            LevelDataRef::Materialized(_) => 1,
+            LevelDataRef::Uniform { .. } => 2,
+        };
+        for (i, (s, o)) in shared.iter().zip(&own).enumerate() {
+            assert_eq!(s, o, "leaf {i} of {field}");
+            // The column writer takes a different path for uniform levels, so the
+            // representation must match too, not only the levels
+            assert_eq!(
+                kind(&s.rep_levels),
+                kind(&o.rep_levels),
+                "leaf {i} of {field}"
+            );
+            assert_eq!(
+                kind(&s.def_levels),
+                kind(&o.def_levels),
+                "leaf {i} of {field}"
+            );
+        }
+        shared
+            .iter()
+            .filter(|l| matches!(l.rep_levels, LevelData::Shared(_)))
+            .count()
+    }
+
+    #[test]
+    fn test_shared_rep_levels_random() {
+        use arrow::util::data_gen::create_random_array;
+
+        let leaf =
+            |name: &str, t: DataType, nullable: bool| Arc::new(Field::new(name, t, nullable));
+        let list = |name: &str, child: Arc<Field>, nullable: bool| {
+            Arc::new(Field::new(name, DataType::List(child), nullable))
+        };
+        let strukt = |name: &str, fields: Vec<Arc<Field>>, nullable: bool| {
+            Arc::new(Field::new(name, DataType::Struct(fields.into()), nullable))
+        };
+
+        // Wikidata's claims: a list of structs of scalars, structs and lists
+        let claims = |nullable: bool| {
+            list(
+                "claims",
+                strukt(
+                    "item",
+                    vec![
+                        leaf("id", DataType::Utf8, nullable),
+                        leaf("rank", DataType::Int32, nullable),
+                        strukt(
+                            "value",
+                            vec![
+                                leaf("text", DataType::Utf8, true),
+                                leaf("amount", DataType::Float64, true),
+                                list("qualifiers", leaf("item", DataType::Int64, true), true),
+                            ],
+                            true,
+                        ),
+                        list(
+                            "references",
+                            strukt(
+                                "item",
+                                vec![
+                                    leaf("hash", DataType::Utf8, nullable),
+                                    list("snaks", leaf("item", DataType::Utf8, true), nullable),
+                                    leaf("n", DataType::Int16, true),
+                                ],
+                                nullable,
+                            ),
+                            true,
+                        ),
+                        leaf("flag", DataType::Boolean, true),
+                    ],
+                    nullable,
+                ),
+                nullable,
+            )
+        };
+        let map = Arc::new(Field::new_map(
+            "map",
+            "entries",
+            Field::new("keys", DataType::Utf8, false),
+            Field::new(
+                "values",
+                DataType::Struct(
+                    vec![
+                        leaf("x", DataType::Int32, true),
+                        list("y", leaf("item", DataType::Int32, true), true),
+                        leaf("z", DataType::Utf8, true),
+                    ]
+                    .into(),
+                ),
+                true,
+            ),
+            false,
+            true,
+        ));
+        let large = Arc::new(Field::new(
+            "large",
+            DataType::LargeList(strukt(
+                "item",
+                vec![
+                    leaf("a", DataType::Int32, true),
+                    leaf("b", DataType::Int32, false),
+                ],
+                true,
+            )),
+            true,
+        ));
+        let top = strukt(
+            "top",
+            vec![
+                leaf("scalar", DataType::Int32, true),
+                claims(true),
+                list("ints", leaf("item", DataType::Int32, true), true),
+            ],
+            true,
+        );
+
+        let mut checked = 0;
+        let mut shared = 0;
+        for null_density in [0.0, 0.2, 0.6, 1.0] {
+            for size in [0, 1, 7, 200] {
+                for field in [
+                    claims(true),
+                    claims(false),
+                    map.clone(),
+                    large.clone(),
+                    top.clone(),
+                ] {
+                    let array = create_random_array(&field, size, null_density, 0.5).unwrap();
+                    shared += assert_shared_rep_levels_match(&field, &array);
+                    checked += 1;
+
+                    // Sliced: offsets into the child values and null buffers
+                    if size > 4 {
+                        let sliced = array.slice(2, size - 4);
+                        shared += assert_shared_rep_levels_match(&field, &sliced);
+                    }
+
+                    // The same list as a list view (top-level lists only)
+                    if let DataType::List(child) = field.data_type() {
+                        let view = ListViewArray::from(array.as_list::<i32>().clone());
+                        let view_field = Field::new(
+                            "view",
+                            DataType::ListView(child.clone()),
+                            field.is_nullable(),
+                        );
+                        let view = Arc::new(view) as ArrayRef;
+                        shared += assert_shared_rep_levels_match(&view_field, &view);
+                    }
+
+                    // The list's items as a fixed size list of 3
+                    if let DataType::List(child) = field.data_type() {
+                        let values =
+                            create_random_array(child, size * 3, null_density, 0.5).unwrap();
+                        let nulls = field.is_nullable().then(|| array.logical_nulls()).flatten();
+                        let fixed =
+                            FixedSizeListArray::try_new(child.clone(), 3, values, nulls).unwrap();
+                        let fixed_field = Field::new(
+                            "fixed",
+                            DataType::FixedSizeList(child.clone(), 3),
+                            field.is_nullable(),
+                        );
+                        let fixed = Arc::new(fixed) as ArrayRef;
+                        shared += assert_shared_rep_levels_match(&fixed_field, &fixed);
+                    }
+                }
+            }
+        }
+        assert_eq!(checked, 80);
+        // The groups were exercised, not just skipped
+        assert!(
+            shared > 100,
+            "{shared} leaves with shared repetition levels"
+        );
+    }
+
+    #[test]
+    fn test_shared_rep_levels_copied_on_write() {
+        // Two leaves under one list share their repetition levels; changing one leaf's
+        // copy leaves the other's as it was
+        let a = Arc::new(Field::new("a", DataType::Int32, true));
+        let b = Arc::new(Field::new("b", DataType::Int32, true));
+        let item = Field::new_struct("item", vec![a.clone(), b.clone()], true);
+        let list_field = Field::new("list", DataType::List(Arc::new(item.clone())), true);
+        let values = StructArray::from(vec![
+            (a, Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef),
+            (b, Arc::new(Int32Array::from(vec![4, 5, 6])) as ArrayRef),
+        ]);
+        let list = ListArray::new(
+            Arc::new(item),
+            OffsetBuffer::new(vec![0, 2, 3].into()),
+            Arc::new(values),
+            None,
+        );
+        let array = Arc::new(list) as ArrayRef;
+        let mut levels = calculate_array_levels(&array, &list_field).unwrap();
+        assert!(matches!(levels[0].rep_levels, LevelData::Shared(_)));
+        assert!(matches!(levels[1].rep_levels, LevelData::Shared(_)));
+        assert_eq!(levels[0].rep_levels, LevelData::Materialized(vec![0, 1, 0]));
+
+        levels[0].append_rep_level_run(0, 1);
+        assert_eq!(
+            levels[0].rep_levels,
+            LevelData::Materialized(vec![0, 1, 0, 0])
+        );
+        assert_eq!(levels[1].rep_levels, LevelData::Materialized(vec![0, 1, 0]));
     }
 }
