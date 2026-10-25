@@ -115,6 +115,10 @@ fn statistics_on_some_columns_are_copied_as_they_are() {
         .set_max_row_group_row_count(Some(50))
         .set_statistics_enabled(EnabledStatistics::None)
         .set_column_statistics_enabled("id".into(), EnabledStatistics::Page)
+        .set_key_value_metadata(Some(vec![parquet::file::metadata::KeyValue::new(
+            "origin".into(),
+            "test".to_string(),
+        )]))
         .build();
     let batch = batch(1, 120, true);
     let mut w = parquet::arrow::ArrowWriter::try_new(
