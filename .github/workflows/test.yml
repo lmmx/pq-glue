@@ -28,6 +28,23 @@ jobs:
       - name: Tests (parallel)
         run: cargo test --features parallel
 
+  # Experiment, not to merge: arrow-rs's own writer tests on the vendored, patched parquet
+  vendored-parquet:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vendor/parquet
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: vendor/parquet
+      - name: Arrow writer unit tests (levels included)
+        run: cargo test --locked --no-default-features --features arrow,snap,zstd --lib arrow_writer
+      - name: Arrow writer integration tests
+        run: cargo test --locked --no-default-features --features arrow,snap,zstd --test arrow_writer
+
   get-python-versions:
     runs-on: ubuntu-latest
     outputs:

@@ -82,3 +82,8 @@ lto = "thin"
 opt-level = 2
 panic = "unwind"
 strip = "symbols"
+
+# Experiment, not to merge: arrow-rs's parquet 60.0.0 with each list's repetition levels
+# computed once and shared by its leaves (vendor/parquet/src/arrow/arrow_writer/levels.rs)
+[patch.crates-io]
+parquet = { path = "vendor/parquet" }
