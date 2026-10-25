@@ -21,6 +21,9 @@
 //! # }
 //! ```
 //!
+//! [`concat_size`] gives the size of the file `concat` would write, without writing it
+//! or reading the inputs' column chunks.
+//!
 //! With the `parallel` feature, `concat_many` runs many such concatenations at once,
 //! on rayon. With the `read` feature, [`read::read`] reads a file to Arrow record
 //! batches, its row groups decoded in parallel.
@@ -36,7 +39,7 @@ pub mod read;
 #[cfg(feature = "write")]
 pub mod write;
 
-pub use concat::concat;
 #[cfg(feature = "parallel")]
 pub use concat::concat_many;
+pub use concat::{concat, concat_size};
 pub use error::{Error, Result};

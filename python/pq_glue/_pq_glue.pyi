@@ -36,6 +36,33 @@ def concat(sources: Sequence[str | PathLike[str]], dst: str | PathLike[str]) -> 
         If a source cannot be opened or `dst` cannot be written.
     """
 
+def concat_size(sources: Sequence[str | PathLike[str]]) -> int:
+    """The size of the file `concat(sources, dst)` would write, without writing it.
+
+    The sources are opened and checked as `concat` checks them, and their footers,
+    page indexes and bloom filters read; their column chunks are not read. The file is
+    glued as `concat` glues it, its bytes counted and not kept, so the size is exactly
+    that of `concat`'s file.
+
+    Parameters
+    ----------
+    sources
+        The Parquet files `concat` would concatenate, in order.
+
+    Returns
+    -------
+    int
+        The size in bytes of the file `concat` would write.
+
+    Raises
+    ------
+    ValueError
+        As `concat` raises it: no sources, a source not a Parquet file, or sources that
+        differ in schema, key-value metadata or column orders.
+    OSError
+        If a source cannot be opened.
+    """
+
 def concat_many(
     jobs: Sequence[tuple[Sequence[str | PathLike[str]], str | PathLike[str]]],
 ) -> list[int]:

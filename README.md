@@ -57,6 +57,17 @@ rows = pq_glue.concat_many([(["a.parquet", "b.parquet"], "ab.parquet"), (["c.par
 For many small concatenations, whose time goes on opening files and writing footers,
 one call is quicker than a `concat` per job.
 
+The size of the file `concat` would write, without writing it (in Rust,
+`pq_glue::concat_size`):
+
+```python
+size = pq_glue.concat_size(["a.parquet", "b.parquet"])
+```
+
+Only the inputs' footers, page indexes and bloom filters are read. The file is glued as
+`concat` glues it, its bytes counted rather than kept and its column chunks taken as
+zeros of their lengths, so the size is exactly `concat`'s file's.
+
 ## The output file
 
 The output file contains:

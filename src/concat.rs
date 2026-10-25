@@ -1,7 +1,7 @@
 //! Concatenation by copying encoded row groups.
 
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -69,15 +69,71 @@ fn concat_reading(inputs: &[PathBuf], output: &Path, read_whole: u64) -> Result<
 /// and for a small file those system calls take longer than the bytes copied.
 const READ_WHOLE_BYTES: u64 = 16 << 20;
 
+/// The size in bytes of the file [`concat`](concat()) would write for `inputs`, found
+/// without writing it or reading the inputs' column chunks.
+///
+/// The inputs are opened and checked as `concat` checks them, and glued by the same
+/// code, the same footer, page indexes and bloom filters written: only the output is a
+/// count of the bytes written, and each column chunk is copied as as many zeros. Every
+/// offset the footer and page indexes declare depends on the lengths written alone, and
+/// `concat`'s column orders are patched in place over encodings of the same length (see
+/// [`restore_column_orders`]), so the count is `concat`'s file's size.
+pub fn concat_size(inputs: &[PathBuf]) -> Result<u64> {
+    if inputs.is_empty() {
+        return Err(Error::NoInputs);
+    }
+    let inputs = inputs
+        .iter()
+        .map(|p| Input::new(p.clone(), File::open(p).map_err(Error::io(p))?))
+        .collect::<Result<Vec<_>>>()?;
+    check_compatible(&inputs)?;
+    let name = PathBuf::from("(the glue's size)");
+    let mut glue = Glue::new(Count(0), &name, &inputs[0], footer(&inputs))?;
+    for input in &inputs {
+        glue.append_from(input, &Zeros)?;
+    }
+    Ok(glue.close()?.1 .0)
+}
+
+/// An output that keeps only a count of the bytes written to it.
+struct Count(u64);
+
+impl Write for Count {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0 += buf.len() as u64;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Column chunks' bytes for [`concat_size`]: zeros, as many as each chunk's length.
+struct Zeros;
+
+impl parquet::file::reader::Length for Zeros {
+    fn len(&self) -> u64 {
+        u64::MAX
+    }
+}
+
+impl ChunkReader for Zeros {
+    type T = std::io::Repeat;
+
+    fn get_read(&self, _start: u64) -> parquet::errors::Result<Self::T> {
+        Ok(std::io::repeat(0))
+    }
+
+    fn get_bytes(&self, _start: u64, length: usize) -> parquet::errors::Result<Bytes> {
+        Ok(Bytes::from(vec![0; length]))
+    }
+}
+
 /// Glue `inputs`, open, into `output` (see [`concat`](concat())).
 fn glue<R: ChunkReader>(inputs: &[Input<R>], output: &Path) -> Result<u64> {
     check_compatible(inputs)?;
-    let footer = Footer {
-        created_by: created_by(inputs),
-        version: writer_version(inputs),
-        sorting_columns: sorting_columns(inputs),
-    };
-    let result = Glue::create(output, &inputs[0], footer).and_then(|mut glue| {
+    let result = Glue::create(output, &inputs[0], footer(inputs)).and_then(|mut glue| {
         for input in inputs {
             glue.append(input)?;
         }
@@ -107,6 +163,15 @@ pub fn concat_many(jobs: &[(Vec<PathBuf>, PathBuf)]) -> Vec<Result<u64>> {
         .collect()
 }
 
+/// The footer of a glue of `inputs` (see [`Footer`]).
+fn footer<R>(inputs: &[Input<R>]) -> Footer {
+    Footer {
+        created_by: created_by(inputs),
+        version: writer_version(inputs),
+        sorting_columns: sorting_columns(inputs),
+    }
+}
+
 /// What a glued file's footer declares besides the first input's schema, key-value
 /// metadata and column orders: where the inputs agree on them, their `created_by`,
 /// format version and row groups' sorting columns; parquet-rs's own `created_by` and
@@ -119,18 +184,44 @@ pub(crate) struct Footer {
 }
 
 /// A file being glued: inputs' row groups appended in turn, each column chunk as it is
-/// encoded, with its bloom filter and page index entries where it has them.
-pub(crate) struct Glue {
-    writer: SerializedFileWriter<File>,
+/// encoded, with its bloom filter and page index entries where it has them. Written to
+/// a file, or (for [`concat_size`]) to a count of its bytes.
+pub(crate) struct Glue<W: Write + Send = File> {
+    writer: SerializedFileWriter<W>,
     output: PathBuf,
     orders: Vec<ColumnOrder>,
     rows: u64,
 }
 
-impl Glue {
+impl Glue<File> {
     /// `output`, created (or truncated), to take inputs with `first`'s schema, key-value
     /// metadata and column orders.
     pub fn create<R>(output: &Path, first: &Input<R>, footer: Footer) -> Result<Self> {
+        let file = File::create(output).map_err(Error::io(output))?;
+        Glue::new(file, output, first, footer)
+    }
+
+    /// Append `input`'s row groups, which must have the first input's schema, column
+    /// orders and key-value metadata (see [`check_same`](crate::input::check_same)).
+    pub fn append<R: ChunkReader>(&mut self, input: &Input<R>) -> Result<()> {
+        self.append_from(input, &input.file)
+    }
+
+    /// Write the footer, with the inputs' column orders, and return the rows written.
+    pub fn finish(self) -> Result<u64> {
+        let output = self.output.clone();
+        let orders = self.orders.clone();
+        let (rows, file) = self.close()?;
+        drop(file);
+        restore_column_orders(&output, &orders)?;
+        Ok(rows)
+    }
+}
+
+impl<W: Write + Send> Glue<W> {
+    /// A glue written to `sink`, named `output` in errors, to take inputs with `first`'s
+    /// schema, key-value metadata and column orders.
+    fn new<R>(sink: W, output: &Path, first: &Input<R>, footer: Footer) -> Result<Self> {
         let fm = first.metadata.file_metadata();
         let mut props = WriterProperties::builder()
             .set_key_value_metadata(fm.key_value_metadata().cloned())
@@ -141,9 +232,8 @@ impl Glue {
         if let Some(version) = footer.version {
             props = props.set_writer_version(version);
         }
-        let file = File::create(output).map_err(Error::io(output))?;
         let writer = SerializedFileWriter::new(
-            file,
+            sink,
             fm.schema_descr().root_schema_ptr(),
             Arc::new(props.build()),
         )
@@ -156,9 +246,13 @@ impl Glue {
         })
     }
 
-    /// Append `input`'s row groups, which must have the first input's schema, column
-    /// orders and key-value metadata (see [`check_same`](crate::input::check_same)).
-    pub fn append<R: ChunkReader>(&mut self, input: &Input<R>) -> Result<()> {
+    /// Append `input`'s row groups (see [`append`](Glue::append)), each column chunk's
+    /// bytes read from `data` (the input's file, or [`Zeros`]).
+    fn append_from<R: ChunkReader, D: ChunkReader>(
+        &mut self,
+        input: &Input<R>,
+        data: &D,
+    ) -> Result<()> {
         let output = &self.output;
         let page_index = input.metadata.page_index();
         for (r, rg) in input.metadata.row_groups().iter().enumerate() {
@@ -178,7 +272,7 @@ impl Glue {
                     offset_index: page_index.and_then(|pi| pi.offset_index(r, c)).cloned(),
                 };
                 rg_out
-                    .append_column(&input.file, chunk)
+                    .append_column(data, chunk)
                     .map_err(Error::parquet(&input.path))?;
             }
             rg_out.close().map_err(Error::parquet(output))?;
@@ -187,11 +281,14 @@ impl Glue {
         Ok(())
     }
 
-    /// Write the footer, with the inputs' column orders, and return the rows written.
-    pub fn finish(self) -> Result<u64> {
-        self.writer.close().map_err(Error::parquet(&self.output))?;
-        restore_column_orders(&self.output, &self.orders)?;
-        Ok(self.rows)
+    /// Write the footer (parquet-rs's column orders: see [`finish`](Glue::finish)), and
+    /// return the rows written and the sink.
+    fn close(self) -> Result<(u64, W)> {
+        let sink = self
+            .writer
+            .into_inner()
+            .map_err(Error::parquet(&self.output))?;
+        Ok((self.rows, sink))
     }
 }
 

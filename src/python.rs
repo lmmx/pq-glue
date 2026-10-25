@@ -32,6 +32,14 @@ fn py_concat(py: Python<'_>, sources: Vec<PathBuf>, dst: PathBuf) -> PyResult<u6
     Ok(py.detach(|| crate::concat(&sources, &dst))?)
 }
 
+/// The size in bytes of the file `concat(sources, dst)` would write, without writing it.
+/// See `pq_glue/_pq_glue.pyi`.
+#[pyfunction]
+#[pyo3(name = "concat_size")]
+fn py_concat_size(py: Python<'_>, sources: Vec<PathBuf>) -> PyResult<u64> {
+    Ok(py.detach(|| crate::concat_size(&sources))?)
+}
+
 /// Concatenate each job's sources into its destination, the jobs in parallel; returns
 /// each job's rows written. See `pq_glue/_pq_glue.pyi`.
 #[pyfunction]
@@ -242,6 +250,7 @@ fn py_read_parquet<'py>(
 fn _pq_glue(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_concat, m)?)?;
     m.add_function(wrap_pyfunction!(py_concat_many, m)?)?;
+    m.add_function(wrap_pyfunction!(py_concat_size, m)?)?;
     m.add_function(wrap_pyfunction!(py_write_parquet, m)?)?;
     m.add_function(wrap_pyfunction!(py_read_parquet, m)?)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
