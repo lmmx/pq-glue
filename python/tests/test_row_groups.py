@@ -4,7 +4,7 @@ import pq_glue
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from .conftest import write
+from .conftest import row_group_stats, write
 
 
 def test_every_row_group_in_order_is_the_whole_file(tmp_path):
@@ -23,8 +23,12 @@ def test_chosen_row_groups_in_order_chosen(tmp_path):
     dst = tmp_path / "out.parquet"
     assert pq_glue.concat([(src, [2, 0])], dst) == 80
     f = pq.ParquetFile(src)
-    want = pa.concat_tables([f.read_row_group(2), f.read_row_group(0)])
-    assert pq.read_table(dst).equals(want)
+    # (the columns without NaN, which no table equals)
+    cols = ["id", "n", "tag"]
+    want = pa.concat_tables([f.read_row_group(g, columns=cols) for g in (2, 0)])
+    assert pq.read_table(dst, columns=cols).equals(want)
+    k, stats = pq.read_metadata(src).num_columns + 1, row_group_stats([src])  # a row group's entries
+    assert row_group_stats([dst]) == stats[2 * k : 3 * k] + stats[:k]
 
 
 def test_split_and_glued_back(tmp_path):
