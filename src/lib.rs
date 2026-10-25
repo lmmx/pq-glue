@@ -33,10 +33,12 @@ mod input;
 mod python;
 #[cfg(feature = "read")]
 pub mod read;
+mod source;
 #[cfg(feature = "write")]
 pub mod write;
 
-pub use concat::concat;
+pub use concat::{concat, concat_sources};
 #[cfg(feature = "parallel")]
-pub use concat::concat_many;
+pub use concat::{concat_many, concat_many_sources};
 pub use error::{Error, Result};
+pub use source::Source;

@@ -35,16 +35,6 @@ pub(crate) fn read_metadata<R: ChunkReader>(path: &Path, file: &R) -> Result<Par
         .map_err(Error::parquet(path))
 }
 
-/// Every input has the first one's Parquet schema, column orders and key-value
-/// metadata: the output's footer is the first input's, so its row groups must all be
-/// read and compared the same way.
-pub(crate) fn check_compatible<R>(inputs: &[Input<R>]) -> Result<()> {
-    for input in &inputs[1..] {
-        check_same(&inputs[0], input)?;
-    }
-    Ok(())
-}
-
 /// `input` has `first`'s Parquet schema, column orders and key-value metadata.
 pub(crate) fn check_same<R, S>(first: &Input<R>, input: &Input<S>) -> Result<()> {
     let fm = first.metadata.file_metadata();

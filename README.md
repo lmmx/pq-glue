@@ -57,6 +57,18 @@ rows = pq_glue.concat_many([(["a.parquet", "b.parquet"], "ab.parquet"), (["c.par
 For many small concatenations, whose time goes on opening files and writing footers,
 one call is quicker than a `concat` per job.
 
+A source can be some of a file's row groups: a `(file, row_groups)` tuple copies those
+row groups, in that order (in Rust, `pq_glue::Source::row_groups` with
+`pq_glue::concat_sources` and `pq_glue::concat_many_sources`). A file of many
+partitions, a row group per partition, splits into a file per partition:
+
+```python
+rows = pq_glue.concat_many([([("all.parquet", [0])], "en.parquet"), ([("all.parquet", [1, 2])], "fr.parquet")])
+```
+
+A file that several jobs of one `concat_many` copy from is opened, and its footer read,
+once for them all.
+
 ## The output file
 
 The output file contains:

@@ -16,7 +16,8 @@ use parquet::file::writer::SerializedFileWriter;
 
 use crate::error::{Error, Result};
 use crate::footer::restore_column_orders;
-use crate::input::{check_compatible, Input};
+use crate::input::{check_same, Input};
+use crate::source::{At, Reader, Source};
 
 /// Concatenate `inputs`, in order, into `output`, returning the rows written.
 ///
@@ -25,42 +26,62 @@ use crate::input::{check_compatible, Input};
 /// if the copy fails part way; it must not be one of the inputs. When no input is larger
 /// than 16 MiB, the inputs are read whole into memory, in one read each.
 pub fn concat(inputs: &[PathBuf], output: &Path) -> Result<u64> {
-    concat_reading(inputs, output, READ_WHOLE_BYTES)
+    let sources: Vec<Source> = inputs.iter().cloned().map(Source::whole).collect();
+    concat_reading(&sources, output, READ_WHOLE_BYTES)
 }
 
-/// [`concat`](concat()), the inputs read whole if none is larger than `read_whole` bytes.
-fn concat_reading(inputs: &[PathBuf], output: &Path, read_whole: u64) -> Result<u64> {
-    if inputs.is_empty() {
-        return Err(Error::NoInputs);
-    }
-    if inputs.iter().any(|p| p.as_path() == output) {
-        return Err(Error::OutputIsInput(output.to_path_buf()));
-    }
-    let files = inputs
+/// [`concat`](concat()) of `sources`: each a file's row groups, all of them or those it
+/// lists, in the order it lists them. The output is the selected row groups in order,
+/// with the footer [`concat`](concat()) writes for the files they come from; a source
+/// listing every row group in order is its whole file. A row group the file does not
+/// have is an error ([`Error::RowGroup`]), and nothing is written.
+pub fn concat_sources(sources: &[Source], output: &Path) -> Result<u64> {
+    concat_reading(sources, output, READ_WHOLE_BYTES)
+}
+
+/// [`concat_sources`], the inputs read whole if none is larger than `read_whole` bytes.
+fn concat_reading(sources: &[Source], output: &Path, read_whole: u64) -> Result<u64> {
+    check_paths(sources, output)?;
+    let files = sources
         .iter()
-        .map(|p| {
+        .map(|s| {
+            let p = &s.path;
             let file = File::open(p).map_err(Error::io(p))?;
             let len = file.metadata().map_err(Error::io(p))?.len();
             Ok((p, file, len))
         })
         .collect::<Result<Vec<_>>>()?;
-    if files.iter().all(|&(_, _, len)| len <= read_whole) {
-        let inputs = files
-            .into_iter()
-            .map(|(p, mut file, len)| {
+    let whole = files.iter().all(|&(_, _, len)| len <= read_whole);
+    let inputs = files
+        .into_iter()
+        .map(|(p, mut file, len)| {
+            let reader = if whole {
                 let mut bytes = vec![0; len as usize];
                 file.read_exact(&mut bytes).map_err(Error::io(p))?;
-                Input::new(p.clone(), Bytes::from(bytes))
-            })
-            .collect::<Result<Vec<_>>>()?;
-        glue(&inputs, output)
-    } else {
-        let inputs = files
-            .into_iter()
-            .map(|(p, file, _)| Input::new(p.clone(), file))
-            .collect::<Result<Vec<_>>>()?;
-        glue(&inputs, output)
+                Reader::Bytes(Bytes::from(bytes))
+            } else {
+                Reader::File(file)
+            };
+            Input::new(p.clone(), reader)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let selected: Vec<_> = inputs
+        .iter()
+        .zip(sources)
+        .map(|(input, s)| (input, s.row_groups.as_deref()))
+        .collect();
+    glue(&selected, output)
+}
+
+/// There are sources, and `output` is not one of them.
+fn check_paths(sources: &[Source], output: &Path) -> Result<()> {
+    if sources.is_empty() {
+        return Err(Error::NoInputs);
     }
+    if sources.iter().any(|s| s.path.as_path() == output) {
+        return Err(Error::OutputIsInput(output.to_path_buf()));
+    }
+    Ok(())
 }
 
 /// Inputs read whole, in one read each, when none is larger than this: read from the
@@ -69,17 +90,37 @@ fn concat_reading(inputs: &[PathBuf], output: &Path, read_whole: u64) -> Result<
 /// and for a small file those system calls take longer than the bytes copied.
 const READ_WHOLE_BYTES: u64 = 16 << 20;
 
-/// Glue `inputs`, open, into `output` (see [`concat`](concat())).
-fn glue<R: ChunkReader>(inputs: &[Input<R>], output: &Path) -> Result<u64> {
-    check_compatible(inputs)?;
+/// An input's row groups to copy: all of them, in order, if None.
+type Selected<'a, R> = (&'a Input<R>, Option<&'a [usize]>);
+
+/// Glue the `inputs`' selected row groups, open, into `output` (see
+/// [`concat_sources`]).
+fn glue<R: ChunkReader>(inputs: &[Selected<'_, R>], output: &Path) -> Result<u64> {
+    for &(input, rgs) in inputs {
+        let n = input.metadata.num_row_groups();
+        if let Some(&r) = rgs.into_iter().flatten().find(|&&r| r >= n) {
+            return Err(Error::RowGroup {
+                path: input.path.clone(),
+                row_group: r,
+                row_groups: n,
+            });
+        }
+    }
+    let first = inputs[0].0;
+    for &(input, _) in &inputs[1..] {
+        check_same(first, input)?;
+    }
     let footer = Footer {
         created_by: created_by(inputs),
         version: writer_version(inputs),
         sorting_columns: sorting_columns(inputs),
     };
-    let result = Glue::create(output, &inputs[0], footer).and_then(|mut glue| {
-        for input in inputs {
-            glue.append(input)?;
+    let result = Glue::create(output, first, footer).and_then(|mut glue| {
+        for &(input, rgs) in inputs {
+            match rgs {
+                None => glue.append(input)?,
+                Some(rgs) => glue.append_row_groups(input, rgs)?,
+            }
         }
         glue.finish()
     });
@@ -101,9 +142,87 @@ fn glue<R: ChunkReader>(inputs: &[Input<R>], output: &Path) -> Result<u64> {
 /// same output, nor one job's output be another's input.
 #[cfg(feature = "parallel")]
 pub fn concat_many(jobs: &[(Vec<PathBuf>, PathBuf)]) -> Vec<Result<u64>> {
+    let jobs: Vec<(Vec<Source>, PathBuf)> = jobs
+        .iter()
+        .map(|(inputs, output)| {
+            (
+                inputs.iter().cloned().map(Source::whole).collect(),
+                output.clone(),
+            )
+        })
+        .collect();
+    concat_many_sources(&jobs)
+}
+
+/// [`concat_many`] of [`concat_sources`] jobs: each job's output is `concat_sources`'s.
+///
+/// A file that more than one job copies from (a file of many partitions' row groups,
+/// each job one partition's) is opened once, and its footer read once, for every job:
+/// it is read at offsets, which the jobs' threads can do at once, and not read whole. A
+/// file only one job copies from is opened by that job, as `concat_sources` opens it.
+#[cfg(feature = "parallel")]
+pub fn concat_many_sources(jobs: &[(Vec<Source>, PathBuf)]) -> Vec<Result<u64>> {
     use rayon::prelude::*;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let mut named: HashMap<&Path, usize> = HashMap::new();
+    for (sources, _) in jobs {
+        let mut seen: Vec<&Path> = Vec::new();
+        for s in sources {
+            if !seen.contains(&s.path.as_path()) {
+                seen.push(&s.path);
+                *named.entry(&s.path).or_default() += 1;
+            }
+        }
+    }
+    let shared: Vec<&Path> = named
+        .into_iter()
+        .filter(|&(_, n)| n > 1)
+        .map(|(p, _)| p)
+        .collect();
+    // A shared file that cannot be opened is opened again by each job naming it, which
+    // fails with its own error
+    let opened: HashMap<&Path, Arc<Input<Reader>>> = shared
+        .par_iter()
+        .filter_map(|&p| {
+            let file = File::open(p).ok()?;
+            let input = Input::new(p.to_path_buf(), Reader::At(At::new(file).ok()?)).ok()?;
+            Some((p, Arc::new(input)))
+        })
+        .collect();
     jobs.par_iter()
-        .map(|(inputs, output)| concat(inputs, output))
+        .map(|(sources, output)| {
+            if !sources
+                .iter()
+                .any(|s| opened.contains_key(s.path.as_path()))
+            {
+                return concat_sources(sources, output);
+            }
+            check_paths(sources, output)?;
+            let own = sources
+                .iter()
+                .filter(|s| !opened.contains_key(s.path.as_path()))
+                .map(|s| {
+                    let file = File::open(&s.path).map_err(Error::io(&s.path))?;
+                    Input::new(s.path.clone(), Reader::File(file))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let mut own = own.iter();
+            let selected: Vec<Selected<'_, Reader>> = sources
+                .iter()
+                .map(|s| {
+                    let input = match opened.get(s.path.as_path()) {
+                        Some(input) => input.as_ref(),
+                        None => own
+                            .next()
+                            .expect("an input opened for each unshared source"),
+                    };
+                    (input, s.row_groups.as_deref())
+                })
+                .collect();
+            glue(&selected, output)
+        })
         .collect()
 }
 
@@ -159,9 +278,21 @@ impl Glue {
     /// Append `input`'s row groups, which must have the first input's schema, column
     /// orders and key-value metadata (see [`check_same`](crate::input::check_same)).
     pub fn append<R: ChunkReader>(&mut self, input: &Input<R>) -> Result<()> {
+        let all: Vec<usize> = (0..input.metadata.num_row_groups()).collect();
+        self.append_row_groups(input, &all)
+    }
+
+    /// Append `input`'s row groups `rgs`, in that order (each one the file has), as
+    /// [`append`](Self::append) appends them all.
+    pub fn append_row_groups<R: ChunkReader>(
+        &mut self,
+        input: &Input<R>,
+        rgs: &[usize],
+    ) -> Result<()> {
         let output = &self.output;
         let page_index = input.metadata.page_index();
-        for (r, rg) in input.metadata.row_groups().iter().enumerate() {
+        for &r in rgs {
+            let rg = input.metadata.row_group(r);
             let mut rg_out = self
                 .writer
                 .next_row_group()
@@ -207,14 +338,17 @@ fn column_orders<R>(first: &Input<R>) -> Vec<ColumnOrder> {
 }
 
 /// The value `get` gives every input, if they all give the same one.
-fn shared<R, T: PartialEq>(inputs: &[Input<R>], get: impl Fn(&Input<R>) -> T) -> Option<T> {
-    let first = get(&inputs[0]);
-    inputs[1..].iter().all(|i| get(i) == first).then_some(first)
+fn shared<R, T: PartialEq>(inputs: &[Selected<'_, R>], get: impl Fn(&Input<R>) -> T) -> Option<T> {
+    let first = get(inputs[0].0);
+    inputs[1..]
+        .iter()
+        .all(|&(i, _)| get(i) == first)
+        .then_some(first)
 }
 
 /// The inputs' `created_by`, if they all have the same one: it names the writer that
 /// encoded every column chunk, which readers use to work around known writers' bugs.
-fn created_by<R>(inputs: &[Input<R>]) -> Option<String> {
+fn created_by<R>(inputs: &[Selected<'_, R>]) -> Option<String> {
     shared(inputs, |i| {
         i.metadata.file_metadata().created_by().map(str::to_owned)
     })
@@ -222,7 +356,7 @@ fn created_by<R>(inputs: &[Input<R>]) -> Option<String> {
 }
 
 /// The inputs' format version, if they all have the same one.
-fn writer_version<R>(inputs: &[Input<R>]) -> Option<WriterVersion> {
+fn writer_version<R>(inputs: &[Selected<'_, R>]) -> Option<WriterVersion> {
     match shared(inputs, |i| i.metadata.file_metadata().version())? {
         1 => Some(WriterVersion::PARQUET_1_0),
         2 => Some(WriterVersion::PARQUET_2_0),
@@ -230,11 +364,18 @@ fn writer_version<R>(inputs: &[Input<R>]) -> Option<WriterVersion> {
     }
 }
 
-/// The sorting columns every row group of every input declares, if they all declare the
-/// same. A row group's sorting columns say how its own rows are sorted, and the writer
-/// sets one value for every row group, so row groups that differ declare none.
-fn sorting_columns<R>(inputs: &[Input<R>]) -> Option<Vec<SortingColumn>> {
-    let mut row_groups = inputs.iter().flat_map(|i| i.metadata.row_groups());
+/// The sorting columns every row group copied declares, if they all declare the same. A
+/// row group's sorting columns say how its own rows are sorted, and the writer sets one
+/// value for every row group, so row groups that differ declare none.
+fn sorting_columns<R>(inputs: &[Selected<'_, R>]) -> Option<Vec<SortingColumn>> {
+    let mut row_groups = inputs.iter().flat_map(|&(i, rgs)| {
+        let all = i.metadata.row_groups();
+        let picked: Vec<_> = match rgs {
+            None => all.iter().collect(),
+            Some(rgs) => rgs.iter().map(|&r| &all[r]).collect(),
+        };
+        picked
+    });
     let first = row_groups.next()?.sorting_columns().cloned();
     row_groups
         .all(|rg| rg.sorting_columns() == first.as_ref())
@@ -284,6 +425,7 @@ mod tests {
                 p
             })
             .collect();
+        let inputs: Vec<Source> = inputs.into_iter().map(Source::whole).collect();
         let whole = dir.path().join("whole.parquet");
         let from_file = dir.path().join("from_file.parquet");
         assert_eq!(concat_reading(&inputs, &whole, u64::MAX).unwrap(), 150);

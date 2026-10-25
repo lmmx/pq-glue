@@ -5,7 +5,11 @@ from os import PathLike
 
 __version__: str
 
-def concat(sources: Sequence[str | PathLike[str]], dst: str | PathLike[str]) -> int:
+Source = str | PathLike[str] | tuple[str | PathLike[str], Sequence[int]]
+"""A file (all its row groups, in order), or a file and the row groups to copy from
+it, by index, in the order to copy them."""
+
+def concat(sources: Sequence[Source], dst: str | PathLike[str]) -> int:
     """Concatenate Parquet files that share one schema into one file.
 
     Each input's row groups are copied to `dst` as they are encoded (pages,
@@ -17,7 +21,9 @@ def concat(sources: Sequence[str | PathLike[str]], dst: str | PathLike[str]) -> 
     ----------
     sources
         The Parquet files to concatenate, in order. Each must have the first one's
-        Parquet schema, key-value metadata and column orders.
+        Parquet schema, key-value metadata and column orders. A source may be a
+        `(file, row_groups)` tuple: only those row groups of the file are copied, in
+        that order (a file listing every row group in order is copied whole).
     dst
         The file to write, created or truncated. It is removed if the copy fails part
         way, and must not be one of `sources`.
@@ -31,13 +37,14 @@ def concat(sources: Sequence[str | PathLike[str]], dst: str | PathLike[str]) -> 
     ------
     ValueError
         If there are no sources, `dst` is one of them, a source is not a Parquet file,
-        or the sources differ in schema, key-value metadata or column orders.
+        a row group asked for is not in its file, or the sources differ in schema,
+        key-value metadata or column orders.
     OSError
         If a source cannot be opened or `dst` cannot be written.
     """
 
 def concat_many(
-    jobs: Sequence[tuple[Sequence[str | PathLike[str]], str | PathLike[str]]],
+    jobs: Sequence[tuple[Sequence[Source], str | PathLike[str]]],
 ) -> list[int]:
     """Concatenate many sets of Parquet files at once, each into its own file.
 
@@ -46,6 +53,10 @@ def concat_many(
     batch. For many small concatenations (each a few files), whose time goes on opening
     files and writing footers more than on bytes copied, one call is quicker than a
     `concat` per job.
+
+    A file that more than one job copies from (say a file of many partitions' row
+    groups, each job taking one partition's) is opened, and its footer read, once for
+    the whole call, and read at offsets rather than whole.
 
     Parameters
     ----------

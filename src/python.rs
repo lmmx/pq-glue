@@ -24,20 +24,47 @@ impl From<Error> for PyErr {
     }
 }
 
-/// Concatenate Parquet files with one schema into `dst`, copying their encoded row
-/// groups without decoding them; returns the rows written. See `pq_glue/__init__.pyi`.
+/// A source as Python gives it: a file (all its row groups), or a file and the row
+/// groups to copy from it, in order.
+#[derive(FromPyObject)]
+enum PySource {
+    Whole(PathBuf),
+    RowGroups(PathBuf, Vec<usize>),
+}
+
+impl From<PySource> for crate::Source {
+    fn from(s: PySource) -> Self {
+        match s {
+            PySource::Whole(path) => crate::Source::whole(path),
+            PySource::RowGroups(path, rgs) => crate::Source::row_groups(path, rgs),
+        }
+    }
+}
+
+fn sources_of(sources: Vec<PySource>) -> Vec<crate::Source> {
+    sources.into_iter().map(Into::into).collect()
+}
+
+/// Concatenate Parquet files with one schema (or chosen row groups of them) into `dst`,
+/// copying their encoded row groups without decoding them; returns the rows written.
+/// See `pq_glue/_pq_glue.pyi`.
 #[pyfunction]
 #[pyo3(name = "concat")]
-fn py_concat(py: Python<'_>, sources: Vec<PathBuf>, dst: PathBuf) -> PyResult<u64> {
-    Ok(py.detach(|| crate::concat(&sources, &dst))?)
+fn py_concat(py: Python<'_>, sources: Vec<PySource>, dst: PathBuf) -> PyResult<u64> {
+    let sources = sources_of(sources);
+    Ok(py.detach(|| crate::concat_sources(&sources, &dst))?)
 }
 
 /// Concatenate each job's sources into its destination, the jobs in parallel; returns
 /// each job's rows written. See `pq_glue/_pq_glue.pyi`.
 #[pyfunction]
 #[pyo3(name = "concat_many")]
-fn py_concat_many(py: Python<'_>, jobs: Vec<(Vec<PathBuf>, PathBuf)>) -> PyResult<Vec<u64>> {
-    let results = py.detach(|| crate::concat_many(&jobs));
+fn py_concat_many(py: Python<'_>, jobs: Vec<(Vec<PySource>, PathBuf)>) -> PyResult<Vec<u64>> {
+    let jobs: Vec<(Vec<crate::Source>, PathBuf)> = jobs
+        .into_iter()
+        .map(|(sources, dst)| (sources_of(sources), dst))
+        .collect();
+    let results = py.detach(|| crate::concat_many_sources(&jobs));
     jobs.iter()
         .zip(results)
         .map(|((_, dst), result)| result.map_err(|e| job_error(dst, e)))
