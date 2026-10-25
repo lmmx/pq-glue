@@ -8,6 +8,7 @@ use arrow_schema::SchemaRef;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::metadata::SortingColumn;
 use parquet::file::properties::CdcOptions;
+use parquet::schema::types::{ColumnPath, SchemaDescriptor};
 use pyo3::exceptions::{PyOSError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyCapsule, PyDict};
@@ -100,6 +101,28 @@ fn compression(name: &str, level: Option<i32>) -> PyResult<Compression> {
     }
 }
 
+/// The Parquet schema `schema` is written as.
+fn parquet_schema(schema: &SchemaRef, spec_names: bool) -> PyResult<SchemaDescriptor> {
+    parquet::arrow::ArrowSchemaConverter::new()
+        .with_coerce_types(spec_names)
+        .convert(schema)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+/// The index of the leaf column `column` names: its path (`"id"`, `"a.b"`) or index.
+fn leaf(column: &Bound<'_, PyAny>, descr: &SchemaDescriptor) -> PyResult<usize> {
+    if let Ok(i) = column.extract::<usize>() {
+        if i < descr.num_columns() {
+            return Ok(i);
+        }
+        return Err(PyValueError::new_err(format!("no leaf column {i}")));
+    }
+    let path: String = column.extract()?;
+    (0..descr.num_columns())
+        .find(|&i| descr.column(i).path().string() == path)
+        .ok_or_else(|| PyValueError::new_err(format!("no leaf column {path:?}")))
+}
+
 /// Each sorting column: a leaf column's path (`"id"`, `"a.b"`) or index, optionally with
 /// `descending` and `nulls_first`, as a tuple.
 fn sorting_columns(
@@ -107,23 +130,7 @@ fn sorting_columns(
     schema: &SchemaRef,
     spec_names: bool,
 ) -> PyResult<Vec<SortingColumn>> {
-    let descr = parquet::arrow::ArrowSchemaConverter::new()
-        .with_coerce_types(spec_names)
-        .convert(schema)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let leaf = |column: &Bound<'_, PyAny>| -> PyResult<i32> {
-        if let Ok(i) = column.extract::<usize>() {
-            if i < descr.num_columns() {
-                return Ok(i as i32);
-            }
-            return Err(PyValueError::new_err(format!("no leaf column {i}")));
-        }
-        let path: String = column.extract()?;
-        (0..descr.num_columns())
-            .find(|&i| descr.column(i).path().string() == path)
-            .map(|i| i as i32)
-            .ok_or_else(|| PyValueError::new_err(format!("no leaf column {path:?}")))
-    };
+    let descr = parquet_schema(schema, spec_names)?;
     columns
         .iter()
         .map(|c| {
@@ -133,11 +140,24 @@ fn sorting_columns(
                     Err(_) => (c.clone(), false, false),
                 };
             Ok(SortingColumn {
-                column_idx: leaf(&column)?,
+                column_idx: leaf(&column, &descr)? as i32,
                 descending,
                 nulls_first,
             })
         })
+        .collect()
+}
+
+/// Each statistics column's path: a leaf column's path or index.
+fn statistics_columns(
+    columns: Vec<Bound<'_, PyAny>>,
+    schema: &SchemaRef,
+    spec_names: bool,
+) -> PyResult<Vec<ColumnPath>> {
+    let descr = parquet_schema(schema, spec_names)?;
+    columns
+        .iter()
+        .map(|c| Ok(descr.column(leaf(c, &descr)?).path().clone()))
         .collect()
 }
 
@@ -171,7 +191,8 @@ fn chunking(value: &Bound<'_, PyAny>) -> PyResult<Option<CdcOptions>> {
 #[pyo3(signature = (
     data, path, *, row_group_size=None, compression="zstd", compression_level=None,
     spec_names=true, adaptive_dictionary=true, sorting_columns=None,
-    content_defined_chunking=None, max_workers=None
+    statistics_columns=None, page_index=true, content_defined_chunking=None,
+    max_workers=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn py_write_parquet(
@@ -184,6 +205,8 @@ fn py_write_parquet(
     spec_names: bool,
     adaptive_dictionary: bool,
     sorting_columns: Option<Vec<Bound<'_, PyAny>>>,
+    statistics_columns: Option<Vec<Bound<'_, PyAny>>>,
+    page_index: bool,
     content_defined_chunking: Option<Bound<'_, PyAny>>,
     max_workers: Option<usize>,
 ) -> PyResult<u64> {
@@ -203,6 +226,10 @@ fn py_write_parquet(
         sorting_columns: sorting_columns
             .map(|c| self::sorting_columns(c, &schema, spec_names))
             .transpose()?,
+        statistics_columns: statistics_columns
+            .map(|c| self::statistics_columns(c, &schema, spec_names))
+            .transpose()?,
+        page_index,
         content_defined_chunking: match content_defined_chunking {
             Some(v) => chunking(&v)?,
             None => None,

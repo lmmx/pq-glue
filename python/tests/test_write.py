@@ -110,6 +110,59 @@ def test_sorting_columns(tmp_path, cdc, engine, workers):
         pq_glue.write_parquet(t, out, engine=engine, sorting_columns=["nope"])
 
 
+@pytest.mark.parametrize("engine,workers", ENGINES)
+@pytest.mark.parametrize("cdc", [None, True], ids=["columns", "chunked"])
+@pytest.mark.parametrize("page_index", [True, False], ids=["page-index", "no-index"])
+def test_statistics_columns(tmp_path, cdc, engine, workers, page_index):
+    """Statistics columns, by path or index, alone have statistics.
+
+    With the page index, they have its page statistics and every column its page
+    locations; without it, neither. The values are the table's either way.
+    """
+    t = table(9, 200)
+    out = tmp_path / "out.parquet"
+    pq_glue.write_parquet(
+        t,
+        out,
+        engine=engine,
+        max_workers=workers,
+        row_group_size=50,
+        statistics_columns=["id", 3],
+        page_index=page_index,
+        content_defined_chunking=cdc,
+    )
+    md = pq.read_metadata(out)
+    assert md.num_row_groups == 4
+    for g in range(md.num_row_groups):
+        for i in range(md.num_columns):
+            c = md.row_group(g).column(i)
+            wanted = c.path_in_schema in ("id", "n")
+            assert c.is_stats_set == wanted, c.path_in_schema
+            assert c.has_column_index == (wanted and page_index), c.path_in_schema
+            assert c.has_offset_index == page_index, c.path_in_schema
+    assert md.row_group(0).column(0).statistics.min == "Q9-00000"
+    assert values(out, t)
+    with pytest.raises(ValueError, match="no leaf column"):
+        pq_glue.write_parquet(t, out, engine=engine, statistics_columns=["nope"])
+
+
+@pytest.mark.parametrize("cdc", [None, True], ids=["columns", "chunked"])
+def test_every_statistics_column_is_the_default(tmp_path, cdc):
+    """Every leaf column named writes the file that naming none writes."""
+    t = table(10, 300)
+    default, every = tmp_path / "default.parquet", tmp_path / "every.parquet"
+    pq_glue.write_parquet(t, default, row_group_size=100, content_defined_chunking=cdc)
+    md = pq.read_metadata(default)
+    pq_glue.write_parquet(
+        t,
+        every,
+        row_group_size=100,
+        content_defined_chunking=cdc,
+        statistics_columns=[md.schema.column(i).path for i in range(md.num_columns)],
+    )
+    assert every.read_bytes() == default.read_bytes()
+
+
 def test_compression(tmp_path):
     """Each codec and zstd level is written, and an unknown one rejected."""
     t = table(3, 100)

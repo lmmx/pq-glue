@@ -103,6 +103,65 @@ fn page_indexes_and_bloom_filters_are_copied() {
     }
 }
 
+/// A file with statistics on its `id` column alone (the column index too) glues with
+/// files with statistics on every column: each row group keeps its own statistics and
+/// page indexes, none taken from or given to another.
+#[test]
+fn statistics_on_some_columns_are_copied_as_they_are() {
+    use parquet::file::properties::{EnabledStatistics, WriterProperties};
+    let dir = tempfile::tempdir().unwrap();
+    let some = dir.path().join("some.parquet");
+    let props = WriterProperties::builder()
+        .set_max_row_group_row_count(Some(50))
+        .set_statistics_enabled(EnabledStatistics::None)
+        .set_column_statistics_enabled("id".into(), EnabledStatistics::Page)
+        .build();
+    let batch = batch(1, 120, true);
+    let mut w = parquet::arrow::ArrowWriter::try_new(
+        std::fs::File::create(&some).unwrap(),
+        batch.schema(),
+        Some(props),
+    )
+    .unwrap();
+    w.write(&batch).unwrap();
+    w.close().unwrap();
+    let inputs = [
+        write(dir.path(), 0, 100, 50, true),
+        some,
+        write(dir.path(), 2, 100, 50, true),
+    ];
+    let out = dir.path().join("out.parquet");
+    pq_glue::concat(&inputs, &out).unwrap();
+    let got = metadata(&out);
+    let index = got.page_index().expect("the output has page indexes");
+    let mut k = 0;
+    for input in &inputs {
+        let md = metadata(input);
+        let want = md.page_index().unwrap();
+        for (r, rg) in md.row_groups().iter().enumerate() {
+            for (c, column) in rg.columns().iter().enumerate() {
+                let have = got.row_group(k).column(c);
+                assert_eq!(have.statistics(), column.statistics());
+                assert_eq!(
+                    have.column_index_range().is_some(),
+                    column.column_index_range().is_some()
+                );
+                assert_eq!(index.column_index(k, c), want.column_index(r, c));
+                assert!(index.offset_index(k, c).is_some());
+            }
+            k += 1;
+        }
+    }
+    assert_eq!(k, 7);
+    assert!(metadata(&inputs[1])
+        .row_group(0)
+        .column(1)
+        .statistics()
+        .is_none());
+    let rows: usize = read(&out).iter().map(|b| b.num_rows()).sum();
+    assert_eq!(rows, 320);
+}
+
 #[test]
 fn writer_and_sorting_columns_are_the_inputs() {
     use parquet::file::metadata::SortingColumn;

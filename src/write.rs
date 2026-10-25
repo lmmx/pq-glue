@@ -20,7 +20,8 @@ use bytes::Bytes;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::metadata::SortingColumn;
-use parquet::file::properties::{CdcOptions, WriterProperties};
+use parquet::file::properties::{CdcOptions, EnabledStatistics, WriterProperties};
+use parquet::schema::types::ColumnPath;
 use rayon::prelude::*;
 
 use crate::concat::{Footer, Glue};
@@ -45,6 +46,16 @@ pub struct WriteOptions {
     pub adaptive_dictionary: bool,
     /// The sorting columns each row group declares.
     pub sorting_columns: Option<Vec<SortingColumn>>,
+    /// The leaf columns given statistics (each column chunk's min, max and null count,
+    /// and with `page_index` each page's, in the column index), the others none; every
+    /// leaf column if `None`. Statistics cost a comparison per value and a copy of each
+    /// page's bounds, for columns a reader may never filter on.
+    pub statistics_columns: Option<Vec<ColumnPath>>,
+    /// Write the page index: each column chunk's page locations (the offset index), and
+    /// the statistics columns' page statistics (the column index). Without it, the
+    /// statistics columns have column chunk statistics alone, as pyarrow's
+    /// `write_page_index=False` writes them.
+    pub page_index: bool,
     /// Content-defined chunking of each column's data pages, so pages of unchanged
     /// rows repeat from one file to the next (for deduplicating storage).
     pub content_defined_chunking: Option<CdcOptions>,
@@ -63,6 +74,8 @@ impl Default for WriteOptions {
             compression: Compression::ZSTD(ZstdLevel::try_new(1).expect("1 is a zstd level")),
             adaptive_dictionary: true,
             sorting_columns: None,
+            statistics_columns: None,
+            page_index: true,
             content_defined_chunking: None,
             max_workers: None,
         }
@@ -115,7 +128,8 @@ fn write_in_pool(
 /// distinct are not dictionary encoded (see [`unrepeated_leaves`]), and a data page ends
 /// at arrow-rs's page size limit (1 MiB) alone, as Polars' do, rather than also at
 /// 20,000 rows: zstd compresses each page on its own, and pages of 20,000 fixed-width
-/// values (160 kB of Int64) compress worse.
+/// values (160 kB of Int64) compress worse. Statistics are kept to the statistics
+/// columns, and the page index left out without `page_index`.
 fn properties(
     schema: &SchemaRef,
     batches: &[RecordBatch],
@@ -129,6 +143,23 @@ fn properties(
         .set_content_defined_chunking(options.content_defined_chunking);
     if let Some(rows) = options.max_row_group_rows {
         props = props.set_max_row_group_row_count(Some(rows));
+    }
+    // Page statistics are what arrow-rs writes the column index from, and with none of
+    // them it can leave out the offset index too
+    let level = if options.page_index {
+        EnabledStatistics::Page
+    } else {
+        EnabledStatistics::Chunk
+    };
+    props = props.set_offset_index_disabled(!options.page_index);
+    match &options.statistics_columns {
+        None => props = props.set_statistics_enabled(level),
+        Some(columns) => {
+            props = props.set_statistics_enabled(EnabledStatistics::None);
+            for column in columns {
+                props = props.set_column_statistics_enabled(column.clone(), level);
+            }
+        }
     }
     if options.adaptive_dictionary {
         for column in unrepeated_leaves(schema, options.spec_names, batches) {
@@ -711,6 +742,73 @@ mod tests {
             metadata(&std::fs::read(file.path()).unwrap()).num_row_groups(),
             0
         );
+    }
+
+    /// Statistics are written for the statistics columns alone, at any depth: column
+    /// chunk statistics, and with the page index their pages' statistics (the column
+    /// index), every column's pages still located (the offset index). Without the page
+    /// index, neither index. The values read back the same, with or without
+    /// content-defined chunking, and with every leaf column's statistics the file is
+    /// the one written without statistics columns.
+    #[test]
+    fn statistics_for_the_statistics_columns_alone() {
+        let (schema, batches) = struct_batches(300, 11);
+        let id = ColumnPath::from("id");
+        let xs = ColumnPath::new(
+            ["claims", "xs", "list", "element"]
+                .map(String::from)
+                .to_vec(),
+        );
+        let file = NamedTempFile::new().unwrap();
+        for content_defined_chunking in [None, cdc_options().content_defined_chunking] {
+            let base = WriteOptions {
+                max_row_group_rows: Some(64),
+                spec_names: true,
+                content_defined_chunking,
+                ..WriteOptions::default()
+            };
+            write_batches(file.path(), schema.clone(), batches.clone(), &base).unwrap();
+            let all = std::fs::read(file.path()).unwrap();
+            let leaves: Vec<ColumnPath> = metadata(&all)
+                .file_metadata()
+                .schema_descr()
+                .columns()
+                .iter()
+                .map(|c| c.path().clone())
+                .collect();
+            let every = WriteOptions {
+                statistics_columns: Some(leaves),
+                ..base.clone()
+            };
+            write_batches(file.path(), schema.clone(), batches.clone(), &every).unwrap();
+            assert!(std::fs::read(file.path()).unwrap() == all);
+            for page_index in [true, false] {
+                let options = WriteOptions {
+                    statistics_columns: Some(vec![id.clone(), xs.clone()]),
+                    page_index,
+                    ..base.clone()
+                };
+                write_batches(file.path(), schema.clone(), batches.clone(), &options).unwrap();
+                let out = std::fs::read(file.path()).unwrap();
+                let md = metadata(&out);
+                assert_eq!(md.num_row_groups(), 5);
+                for rg in md.row_groups() {
+                    for c in rg.columns() {
+                        let path = c.column_path();
+                        let wanted = path == &id || path == &xs;
+                        assert_eq!(c.statistics().is_some(), wanted, "{path}");
+                        assert_eq!(
+                            c.column_index_range().is_some(),
+                            wanted && page_index,
+                            "{path}"
+                        );
+                        assert_eq!(c.offset_index_range().is_some(), page_index, "{path}");
+                    }
+                }
+                let got = concat(&read(&out)[0].schema(), &read(&out));
+                assert_eq!(got, concat(&read(&all)[0].schema(), &read(&all)));
+            }
+        }
     }
 
     fn dictionary_pages(bytes: &[u8]) -> HashMap<String, bool> {

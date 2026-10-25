@@ -82,6 +82,8 @@ def write_parquet(
     spec_names: bool = True,
     adaptive_dictionary: bool = True,
     sorting_columns: Sequence[str | int | tuple[str | int, bool, bool]] | None = None,
+    statistics_columns: Sequence[str | int] | None = None,
+    page_index: bool = True,
     content_defined_chunking: bool | Mapping[str, int] | None = None,
     max_workers: int | None = None,
 ) -> int:
@@ -117,6 +119,13 @@ def write_parquet(
     sorting_columns
         The sorting columns each row group declares: each a leaf column's path (`"id"`,
         `"a.b"`) or index, or a tuple of that, `descending` and `nulls_first`.
+    statistics_columns
+        The leaf columns (each a path or index) given statistics: each column chunk's
+        min, max and null count, and with `page_index` each page's. The others have
+        none. Every leaf column if None.
+    page_index
+        Write the page index: every column chunk's page locations, and the statistics
+        columns' page statistics. Without it, column chunk statistics alone.
     content_defined_chunking
         Content-defined chunking of data pages, for deduplicating storage: True for
         arrow-rs's defaults (256 KiB minimum, 1 MiB maximum chunk, normalisation level
