@@ -48,6 +48,9 @@ pub enum Error {
     },
     /// The thread pool for a write could not be made.
     Pool(String),
+    /// A write's options do not fit its data: a column to encode that the schema does
+    /// not have, or an encoding its type does not take.
+    Option(String),
     /// The footer parquet-rs wrote was not laid out as expected, so its column orders
     /// were not rewritten (see [`footer::restore_column_orders`](crate::footer::restore_column_orders)).
     Footer {
@@ -105,6 +108,7 @@ impl fmt::Display for Error {
                 path.display()
             ),
             Error::Pool(reason) => write!(f, "no thread pool for the write: {reason}"),
+            Error::Option(reason) => write!(f, "{reason}"),
             Error::Footer { path, reason } => {
                 write!(
                     f,
