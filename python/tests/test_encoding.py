@@ -5,6 +5,7 @@ it as it is.
 """
 
 import random
+from typing import Any
 
 import polars as pl
 import pq_glue
@@ -66,7 +67,7 @@ def test_only_the_bytes_change(tmp_path, engine, workers, cdc):
     groups and every column's statistics are the same, and the file is smaller.
     """
     t = claims_like()
-    common = dict(
+    common: dict[str, Any] = dict(
         engine=engine,
         max_workers=workers,
         row_group_size=7_000,
@@ -148,7 +149,9 @@ def test_concat_copies_the_encoding(tmp_path, engine):
     one of both, its values the inputs'.
     """
     t = claims_like(12_000)
-    opts = dict(engine=engine, row_group_size=4_000, content_defined_chunking=True)
+    opts: dict[str, Any] = dict(
+        engine=engine, row_group_size=4_000, content_defined_chunking=True
+    )
     if engine == "pyarrow":
         opts["adaptive_dictionary"] = False
     parts = []
@@ -187,7 +190,7 @@ def test_bad_encodings_raise(tmp_path, engine, encoding, says):
     dictionary encoding are refused.
     """
     out = tmp_path / "out.parquet"
-    opts = {"adaptive_dictionary": False} if engine == "pyarrow" else {}
+    opts: dict[str, Any] = {"adaptive_dictionary": False} if engine == "pyarrow" else {}
     with pytest.raises(ValueError, match=says):
         pq_glue.write_parquet(
             claims_like(500), out, engine=engine, column_encoding=encoding, **opts
