@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use arrow_array::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
 use arrow_array::{RecordBatch, RecordBatchIterator, RecordBatchReader};
 use arrow_schema::SchemaRef;
-use parquet::basic::{Compression, ZstdLevel};
+use parquet::basic::{Compression, Encoding, ZstdLevel};
 use parquet::file::metadata::SortingColumn;
 use parquet::file::properties::CdcOptions;
 use pyo3::exceptions::{PyOSError, PyTypeError, PyValueError};
@@ -164,6 +164,24 @@ fn chunking(value: &Bound<'_, PyAny>) -> PyResult<Option<CdcOptions>> {
     Ok(Some(options))
 }
 
+/// Each column's encoding, from its name (`"DELTA_BYTE_ARRAY"`, any case), in column order.
+fn column_encodings(columns: &Bound<'_, PyAny>) -> PyResult<Vec<(String, Encoding)>> {
+    let dict = columns.cast::<PyDict>().map_err(|_| {
+        PyTypeError::new_err("column_encoding must be a dict of column to encoding")
+    })?;
+    let mut out = Vec::with_capacity(dict.len());
+    for (column, encoding) in dict.iter() {
+        let column: String = column.extract()?;
+        let name: String = encoding.extract()?;
+        let encoding: Encoding = name
+            .to_ascii_uppercase()
+            .parse()
+            .map_err(|_| PyValueError::new_err(format!("{column:?}: no encoding {name:?}")))?;
+        out.push((column, encoding));
+    }
+    Ok(out)
+}
+
 /// Write Arrow data to a Parquet file with pq-glue's writer; returns the rows written.
 /// See `pq_glue/_pq_glue.pyi`.
 #[pyfunction]
@@ -171,7 +189,7 @@ fn chunking(value: &Bound<'_, PyAny>) -> PyResult<Option<CdcOptions>> {
 #[pyo3(signature = (
     data, path, *, row_group_size=None, compression="zstd", compression_level=None,
     spec_names=true, adaptive_dictionary=true, sorting_columns=None,
-    content_defined_chunking=None, max_workers=None
+    content_defined_chunking=None, max_workers=None, column_encoding=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn py_write_parquet(
@@ -186,6 +204,7 @@ fn py_write_parquet(
     sorting_columns: Option<Vec<Bound<'_, PyAny>>>,
     content_defined_chunking: Option<Bound<'_, PyAny>>,
     max_workers: Option<usize>,
+    column_encoding: Option<Bound<'_, PyAny>>,
 ) -> PyResult<u64> {
     if max_workers == Some(0) {
         return Err(PyValueError::new_err("max_workers must be at least 1"));
@@ -208,6 +227,10 @@ fn py_write_parquet(
             None => None,
         },
         max_workers,
+        column_encodings: match column_encoding {
+            Some(c) => column_encodings(&c)?,
+            None => Vec::new(),
+        },
     };
     // The stream read, and the batches encoded, without the GIL: a producer that needs
     // it (a Python record batch reader) takes it for itself

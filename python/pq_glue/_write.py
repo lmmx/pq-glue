@@ -30,6 +30,7 @@ def write_parquet(
     content_defined_chunking: bool | Mapping[str, int] | None = None,
     spec_names: bool = True,
     adaptive_dictionary: bool | None = None,
+    column_encoding: Mapping[str, str] | None = None,
 ) -> int:
     """Write Arrow data to a Parquet file with the engine asked for; returns the rows written.
 
@@ -79,6 +80,18 @@ def write_parquet(
         ("native", "parallel") Leaf columns whose sampled values are more than three
         quarters distinct are not dictionary encoded; True if None. "pyarrow" encodes
         every leaf with a dictionary, and rejects True.
+    column_encoding
+        Leaf columns written in an encoding of their own, with no dictionary: a dict of
+        each leaf's path in the Parquet schema (`"id"`, `"a.b"`, `"xs.list.element"`)
+        to its encoding's name, e.g. `{"statement_id": "DELTA_BYTE_ARRAY"}` for strings
+        that share a prefix with the value before. Only the file's bytes change: every
+        engine reads back the same values, schema and statistics. The encodings:
+        "PLAIN", "RLE" (booleans), "DELTA_BINARY_PACKED" (32 and 64-bit integers),
+        "DELTA_LENGTH_BYTE_ARRAY" (strings and binary), "DELTA_BYTE_ARRAY" (strings and
+        binary, fixed-length too), "BYTE_STREAM_SPLIT" (floats, integers, fixed-length
+        binary); "native" and "parallel" also take "ALP" (floats). A dictionary is
+        `adaptive_dictionary`'s to decide. An unknown column, or an encoding its type
+        does not take, raises `ValueError`.
 
     Returns
     -------
@@ -110,6 +123,7 @@ def write_parquet(
             sorting_columns=sorting_columns,
             content_defined_chunking=content_defined_chunking,
             spec_names=spec_names,
+            column_encoding=column_encoding,
         )
     else:
         raise ValueError(
@@ -128,6 +142,7 @@ def write_parquet(
         sorting_columns=sorting_columns,
         content_defined_chunking=content_defined_chunking,
         spec_names=spec_names,
+        column_encoding=dict(column_encoding) if column_encoding else None,
     )
 
 
@@ -142,6 +157,7 @@ def _pyarrow(
     sorting_columns: Sequence[SortingColumn] | None,
     content_defined_chunking: bool | Mapping[str, int] | None,
     spec_names: bool,
+    column_encoding: Mapping[str, str] | None = None,
 ) -> int:
     """Write with pyarrow, with the native engines' defaults.
 
@@ -178,6 +194,14 @@ def _pyarrow(
         if isinstance(content_defined_chunking, Mapping)
         else bool(content_defined_chunking),
     )
+    if column_encoding:
+        leaves = _leaf_types(table.schema, spec_names)
+        encodings = {
+            c: _check_encoding(c, e, leaves) for c, e in column_encoding.items()
+        }
+        # pyarrow takes an encoding only for a column with no dictionary
+        options["use_dictionary"] = [p for p in leaves if p not in encodings]
+        options["column_encoding"] = encodings
     if codec == "zstd":
         options["compression_level"] = (
             1 if compression_level is None else compression_level
@@ -208,13 +232,9 @@ def _sorting(schema, columns: Sequence[SortingColumn], spec_names: bool) -> list
 
     Leaf paths are resolved as the native engines resolve them.
     """
-    import pyarrow as pa
     import pyarrow.parquet as pq
 
-    sink = pa.BufferOutputStream()
-    pq.write_table(schema.empty_table(), sink, use_compliant_nested_type=spec_names)
-    meta = pq.read_metadata(pa.BufferReader(sink.getvalue()))
-    paths = [meta.schema.column(i).path for i in range(meta.num_columns)]
+    paths = list(_leaf_types(schema, spec_names))
     out = []
     for column in columns:
         column, descending, nulls_first = (
@@ -232,3 +252,51 @@ def _sorting(schema, columns: Sequence[SortingColumn], spec_names: bool) -> list
             pq.SortingColumn(index, descending=descending, nulls_first=nulls_first)
         )
     return out
+
+
+def _leaf_types(schema, spec_names: bool) -> dict[str, str]:
+    """Each Parquet leaf column's physical type, by its path, as pyarrow writes `schema`."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    sink = pa.BufferOutputStream()
+    pq.write_table(schema.empty_table(), sink, use_compliant_nested_type=spec_names)
+    meta = pq.read_metadata(pa.BufferReader(sink.getvalue()))
+    return {
+        meta.schema.column(i).path: meta.schema.column(i).physical_type
+        for i in range(meta.num_columns)
+    }
+
+
+# The physical types each encoding takes, as the native engines check them (pq-glue's
+# write::check_encoding)
+_ENCODES = {
+    "PLAIN": None,
+    "RLE": {"BOOLEAN"},
+    "DELTA_BINARY_PACKED": {"INT32", "INT64"},
+    "DELTA_LENGTH_BYTE_ARRAY": {"BYTE_ARRAY"},
+    "DELTA_BYTE_ARRAY": {"BYTE_ARRAY", "FIXED_LEN_BYTE_ARRAY"},
+    "BYTE_STREAM_SPLIT": {"FLOAT", "DOUBLE", "INT32", "INT64", "FIXED_LEN_BYTE_ARRAY"},
+}
+
+
+def _check_encoding(column: str, encoding: str, leaves: dict[str, str]) -> str:
+    """The encoding's name for pyarrow, checked as the native engines check it.
+
+    Raises ValueError, as they do, for a column `leaves` lacks, an unknown encoding or a
+    dictionary's, or one the column's physical type does not take.
+    """
+    name = encoding.upper()
+    if column not in leaves:
+        raise ValueError(f"no leaf column {column!r} to encode")
+    if name in ("PLAIN_DICTIONARY", "RLE_DICTIONARY", "BIT_PACKED"):
+        raise ValueError(
+            f"{column!r}: {name} is not an encoding to ask for "
+            "(a dictionary is adaptive_dictionary's)"
+        )
+    if name not in _ENCODES:
+        raise ValueError(f"{column!r}: no encoding {encoding!r}")
+    types = _ENCODES[name]
+    if types is not None and leaves[column] not in types:
+        raise ValueError(f"{column!r}: {name} does not encode {leaves[column]} values")
+    return name

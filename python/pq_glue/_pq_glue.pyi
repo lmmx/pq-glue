@@ -84,6 +84,7 @@ def write_parquet(
     sorting_columns: Sequence[str | int | tuple[str | int, bool, bool]] | None = None,
     content_defined_chunking: bool | Mapping[str, int] | None = None,
     max_workers: int | None = None,
+    column_encoding: Mapping[str, str] | None = None,
 ) -> int:
     """Write Arrow data with arrow-rs: `pq_glue.write_parquet`'s native engines.
 
@@ -121,6 +122,12 @@ def write_parquet(
         Content-defined chunking of data pages, for deduplicating storage: True for
         arrow-rs's defaults (256 KiB minimum, 1 MiB maximum chunk, normalisation level
         0, as pyarrow's), or a dict of `min_chunk_size`, `max_chunk_size`, `norm_level`.
+    max_workers
+        Threads that encode at once; the calling pool's (one per CPU) if None.
+    column_encoding
+        Leaf columns written in an encoding of their own (by name, any case), with no
+        dictionary: a dict of each leaf's path in the Parquet schema to its encoding,
+        e.g. `{"statement_id": "DELTA_BYTE_ARRAY"}`. See `pq_glue.write_parquet`.
 
     Returns
     -------
