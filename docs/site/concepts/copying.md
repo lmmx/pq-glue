@@ -9,7 +9,7 @@ description: "The parts of the output file and their sources, the requirements o
 | part | where it comes from |
 |---|---|
 | row groups | every input's, in input order, unchanged |
-| column chunks | copied as bytes: the same pages, dictionary page, encodings and compression |
+| column chunks | copied as bytes: the same pages, dictionary page, encodings ([Column encodings](column-encodings.md)) and compression |
 | column chunk statistics | the inputs' (min, max, null count, distinct count) |
 | page indexes | the inputs' column and offset indexes, where they have them |
 | bloom filters | the inputs', where they have them |

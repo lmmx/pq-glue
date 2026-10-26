@@ -71,6 +71,9 @@ pq.write_table(
   comes from.
 - [Column orders](concepts/column-orders.md): why the copied float statistics need a
   change to the footer, and how pq-glue makes it.
+- [Column encodings](concepts/column-encodings.md): when to write a column in an
+  encoding of its own, such as `DELTA_BYTE_ARRAY` for sorted ids, and what it saved on
+  Wikidata's claims.
 - [Benchmarks](benchmarks.md): pq-glue against Polars and pyarrow, on generated files
   and on Wikidata claims.
 

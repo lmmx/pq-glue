@@ -13,6 +13,7 @@ nav = [
     "concepts/index.md",
     { "What is copied" = "concepts/copying.md" },
     { "Column orders" = "concepts/column-orders.md" },
+    { "Column encodings" = "concepts/column-encodings.md" },
   ] },
   { "Benchmarks" = "benchmarks.md" },
   { "Reference" = [
@@ -164,6 +165,7 @@ version of a page of https://lmmx.github.io/pq-glue/.
   { "concepts/index.md" = "How pq-glue concatenates Parquet files: row groups are copied as bytes, and only the footer is new." },
   { "concepts/copying.md" = "The parts of the output file and their sources, the requirements on the inputs, and the cases concat refuses." },
   { "concepts/column-orders.md" = "Why pq-glue rewrites the footer's column orders, so that copied float statistics stay readable." },
+  { "concepts/column-encodings.md" = "Why and when to write a column in an encoding of its own with write_parquet's column_encoding, how DELTA_BYTE_ARRAY stores strings, and what it saved on Wikidata's claims." },
 ]
 "Get started" = [
   { "getting-started/installation.md" = "Install pq-glue from PyPI or crates.io." },
