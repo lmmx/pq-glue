@@ -1540,6 +1540,7 @@ without the GIL.</p>
     <span class="n">content_defined_chunking</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" title="collections.abc.Mapping" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping">Mapping</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">spec_names</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">adaptive_dictionary</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">column_encoding</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="collections.abc.Mapping" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping">Mapping</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#int">int</a></span>
 </code></pre></div>
 
@@ -1752,6 +1753,32 @@ at each row group in every engine.</p>
                 <p>("native", "parallel") Leaf columns whose sampled values are more than three
 quarters distinct are not dictionary encoded; True if None. "pyarrow" encodes
 every leaf with a dictionary, and rejects True.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>column_encoding</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-external" title="collections.abc.Mapping" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping">Mapping</a>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a>, <a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Leaf columns written in an encoding of their own, with no dictionary: a dict of
+each leaf's path in the Parquet schema (<code>"id"</code>, <code>"a.b"</code>, <code>"xs.list.element"</code>)
+to its encoding's name, e.g. <code>{"statement_id": "DELTA_BYTE_ARRAY"}</code> for strings
+that share a prefix with the value before. Only the file's bytes change: every
+engine reads back the same values, schema and statistics. The encodings:
+"PLAIN", "RLE" (booleans), "DELTA_BINARY_PACKED" (32 and 64-bit integers),
+"DELTA_LENGTH_BYTE_ARRAY" (strings and binary), "DELTA_BYTE_ARRAY" (strings and
+binary, fixed-length too), "BYTE_STREAM_SPLIT" (floats, integers, fixed-length
+binary); "native" and "parallel" also take "ALP" (floats). A dictionary is
+<code>adaptive_dictionary</code>'s to decide. An unknown column, or an encoding its type
+does not take, raises <code>ValueError</code>.</p>
               </div>
             </td>
             <td>
