@@ -8,7 +8,7 @@ license = "MIT"
 name = "pq-glue"
 readme = "README.md"
 repository = "https://github.com/lmmx/pq-glue"
-version = "0.2.0"
+version = "0.3.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

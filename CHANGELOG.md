@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/lmmx/pq-glue/compare/v0.2.0...v0.3.0) - 2026-10-26
+
+### <!-- 1 -->Features
+
+- write_parquet's column_encoding, a leaf column in an encoding of its own ([#13](https://github.com/lmmx/pq-glue/pull/13))
+
+### <!-- 7 -->Build System and CI
+
+- Deploy Release starts CI on the release tag (workflow_dispatch), not CI on workflow_run, which crates.io's Trusted Publishing refuses ([#6](https://github.com/lmmx/pq-glue/pull/6))
+
 ## [0.2.0](https://github.com/lmmx/pq-glue/compare/v0.1.0...v0.2.0) - 2026-10-24
 
 ### <!-- 1 -->Features
