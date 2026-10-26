@@ -24,6 +24,7 @@ pq-glue copies the row groups of several Parquet files into one new file. Each c
 - [Quickstart](<https://lmmx.github.io/pq-glue/getting-started/quickstart/index.md>): write two files, concatenate them, and see what is refused.
 - [What is copied](<https://lmmx.github.io/pq-glue/concepts/copying/index.md>): every part of the output file, and where it comes from.
 - [Column orders](<https://lmmx.github.io/pq-glue/concepts/column-orders/index.md>): why the copied float statistics need a change to the footer, and how pq-glue makes it.
+- [Column encodings](<https://lmmx.github.io/pq-glue/concepts/column-encodings/index.md>): when to write a column in an encoding of its own, such as `DELTA_BYTE_ARRAY` for sorted ids, and what it saved on Wikidata's claims.
 - [Benchmarks](<https://lmmx.github.io/pq-glue/benchmarks/index.md>): pq-glue against Polars and pyarrow, on generated files and on Wikidata claims.
 
 ## Install

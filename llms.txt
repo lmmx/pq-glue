@@ -16,6 +16,7 @@ version of a page of https://lmmx.github.io/pq-glue/.
 - [Concepts](<https://lmmx.github.io/pq-glue/concepts/index.md>): How pq-glue concatenates Parquet files: row groups are copied as bytes, and only the footer is new.
 - [What is copied](<https://lmmx.github.io/pq-glue/concepts/copying/index.md>): The parts of the output file and their sources, the requirements on the inputs, and the cases concat refuses.
 - [Column orders](<https://lmmx.github.io/pq-glue/concepts/column-orders/index.md>): Why pq-glue rewrites the footer's column orders, so that copied float statistics stay readable.
+- [Column encodings](<https://lmmx.github.io/pq-glue/concepts/column-encodings/index.md>): Why and when to write a column in an encoding of its own with write_parquet's column_encoding, how DELTA_BYTE_ARRAY stores strings, and what it saved on Wikidata's claims.
 
 ## Get started
 

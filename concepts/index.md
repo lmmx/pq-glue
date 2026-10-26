@@ -14,3 +14,4 @@ No page is decompressed or decoded, so the cost is that of copying the bytes, an
 
 - [What is copied](<https://lmmx.github.io/pq-glue/concepts/copying/index.md>)
 - [Column orders](<https://lmmx.github.io/pq-glue/concepts/column-orders/index.md>)
+- [Column encodings](<https://lmmx.github.io/pq-glue/concepts/column-encodings/index.md>): writing a column in an encoding of its own with `write_parquet`

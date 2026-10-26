@@ -1,5 +1,7 @@
 # pq\_glue
 
+For when to give `write_parquet` a `column_encoding`, and what it changes, see [Column encodings](<https://lmmx.github.io/pq-glue/concepts/column-encodings/index.md>).
+
 Glue Parquet files together, and write Arrow data to Parquet and read it back.
 
 `concat` copies encoded row groups without decoding them (`concat_many` for many concatenations at once); `write_parquet` writes Arrow data with a choice of engines; `read_parquet` reads a file's row groups in parallel.
