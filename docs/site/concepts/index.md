@@ -21,3 +21,5 @@ memory used does not grow with the size of the files.
 
 - [What is copied](copying.md)
 - [Column orders](column-orders.md)
+- [Column encodings](column-encodings.md): writing a column in an encoding of its own
+  with `write_parquet`
