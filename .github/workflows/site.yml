@@ -73,7 +73,7 @@ jobs:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v8.1.0
       - name: Point the site at its preview path
         if: github.event_name == 'pull_request'
@@ -113,7 +113,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: site
@@ -150,7 +150,7 @@ jobs:
       pull-requests: write
     steps:
       # The deploy step needs a checkout to work in; the default branch, not the pull request.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
       - if: github.event.action != 'closed'
