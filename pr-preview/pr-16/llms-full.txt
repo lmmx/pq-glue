@@ -1,0 +1,673 @@
+# pq-glue
+
+> Concatenate Parquet files without decoding them.
+
+pq-glue concatenates Parquet files that share a schema by copying their encoded row
+groups into one file, without decoding them, from Python (`pq_glue.concat`) or Rust
+(`pq_glue::concat`). Install with `pip install pq-glue`. Each link below is the Markdown
+version of a page of https://lmmx.github.io/pq-glue/.
+
+# Benchmarks
+
+# Benchmarks
+
+pq-glue against the two usual ways of concatenating Parquet files from Python:
+
+| method | code |
+| --- | --- |
+| Polars | `pl.scan_parquet(src).sink_parquet(dst)` |
+| pyarrow | each row group read with `ParquetFile.read_row_group` and written with `ParquetWriter.write_table` (zstd) |
+| pq-glue | `pq_glue.concat(src, dst)` |
+
+All figures are from a 4-core Intel Xeon at 2.1 GHz with Python 3.13. Ranges are the lowest and highest of 3 rounds.
+
+## Generated files
+
+24 files from `bench/make_data.py`: 131 MB, 1.44 million rows, one row group per file.
+
+| method | wall (s) | CPU (s) | peak RSS (MB) |
+| --- | --- | --- | --- |
+| Polars | 4.79–5.29 | 17.41–18.72 | 735–786 |
+| pyarrow | 7.27–7.35 | 8.25–8.38 | 291–307 |
+| pq-glue | 0.23–0.28 | 0.23–0.27 | 11–12 |
+
+pq-glue took about 1/20 of Polars' wall time and 1/70 of its CPU time. Its peak memory is that of the copy buffer and the footers: it does not grow with the number of rows.
+
+## Wikidata claims
+
+The claims partition files of 66 Wikidata chunks, from [wikidata-pq](<https://github.com/lmmx/wikidata-pq>): 555 MB, 9,372,174 rows in 114 row groups, 93 leaf columns nested up to lists of structs of lists. Measured in-process:
+
+| method | wall (s) | CPU (s) | peak RSS |
+| --- | --- | --- | --- |
+| Polars | 61 | 238 | 2.2 GB |
+| pyarrow | 56 | 74 | 0.8 GB |
+| pq-glue | 1.1–1.5 | 0.6 | 87 MB (the whole Python process) |
+
+Decoding and re-encoding cost more for deeply nested columns, where every value has repetition and definition levels to rebuild. pq-glue does neither, so its time depends only on the bytes copied. It was about 20 times faster than Polars on the flat generated files, and about 50 times faster on the claims.
+
+## Checking the outputs
+
+In each benchmark, the first round's outputs must agree before any times are recorded: the same row count, and the same two sums of position-seeded row hashes, read with Polars. Any difference stops the run.
+
+## How it is timed
+
+- **Processes:** each method runs in a fresh Python process, in a different order each round.
+- **Times:** wall and CPU time (user and system) cover the concatenation only, not the imports.
+- **Memory:** peak RSS is the process's `VmHWM`, so the figures are for Linux only.
+
+## Reproducing
+
+The scripts are in [bench/](<https://github.com/lmmx/pq-glue/tree/master/bench>), a uv project that installs pq-glue from the repository:
+
+```sh
+cd bench
+uv run make_data.py          # 24 files of 60,000 rows each in data/, about 131 MB
+uv run run.py --rounds 3     # times each method and checks their outputs agree
+```
+
+To run the same comparison on your own files:
+
+```sh
+uv run run.py --files 'path/to/*.parquet'
+```
+
+Each run is appended to `bench/results.jsonl`.
+
+# Concepts
+
+# Concepts
+
+A Parquet file is a sequence of row groups followed by a footer. Each row group has one column chunk per leaf column. The footer records the schema and, for every column chunk, where it starts, how long it is, its encodings, its compression and its statistics.
+
+To concatenate files, pq-glue:
+
+1. reads each input's footer (and page indexes, if any);
+2. checks that the inputs share one schema, key-value metadata and column orders;
+3. copies each input's column chunks, in order, to the output as bytes;
+4. writes a new footer, with each column chunk's offsets moved to its new position;
+5. restores the inputs' column orders in that footer ([Column orders](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-orders/index.md>)).
+
+No page is decompressed or decoded, so the cost is that of copying the bytes, and the memory used does not grow with the size of the files.
+
+- [What is copied](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/copying/index.md>)
+- [Column orders](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-orders/index.md>)
+- [Column encodings](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-encodings/index.md>): writing a column in an encoding of its own with `write_parquet`
+
+# What is copied
+
+## The output file
+
+| part | where it comes from |
+| --- | --- |
+| row groups | every input's, in input order, unchanged |
+| column chunks | copied as bytes: the same pages, dictionary page, encodings ([Column encodings](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-encodings/index.md>)) and compression |
+| column chunk statistics | the inputs' (min, max, null count, distinct count) |
+| page indexes | the inputs' column and offset indexes, where they have them |
+| bloom filters | the inputs', where they have them |
+| Parquet schema | the first input's |
+| key-value metadata | the first input's, including `ARROW:schema` |
+| column orders | the inputs' ([Column orders](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-orders/index.md>)) |
+| `created_by` | parquet-rs, which writes the footer |
+
+Row groups are not merged or split: an output written from files of one small row group each has as many small row groups. Read it with a reader that handles many row groups, or rewrite it once if a few large row groups are needed.
+
+## Requirements on the inputs
+
+Every input must have the first input's:
+
+- Parquet schema (field names, types, repetition and logical types);
+- key-value metadata (so `ARROW:schema` describes every row group);
+- column orders (so every row group's statistics follow the same order).
+
+## Cases `concat` refuses
+
+`concat` returns an error and writes nothing when:
+
+| case | Python | Rust |
+| --- | --- | --- |
+| no inputs | `ValueError` | `Error::NoInputs` |
+| the output path is an input path | `ValueError` | `Error::OutputIsInput` |
+| an input differs in schema, metadata or column orders | `ValueError` | `Error::Incompatible` |
+| an input is not a Parquet file | `ValueError` | `Error::Parquet` |
+| an input cannot be opened | `OSError` | `Error::Io` |
+
+If the copy fails after the output file has been created, the output file is deleted.
+
+# Column orders
+
+The footer of a Parquet file declares, for each leaf column, the sort order its min/max statistics use. For most types this is the type-defined order. For floats, the Parquet format also defines IEEE 754 total order, which orders NaN and signed zeros and requires each column chunk's statistics to carry a NaN count.
+
+## The problem with a plain copy
+
+parquet-rs (v60) declares IEEE 754 total order for every float column of a file it writes, whatever order the statistics in it were computed in. pyarrow writes float statistics in the type-defined order, without NaN counts. After a plain copy of pyarrow files, the output declares IEEE 754 total order for statistics that do not follow it, and Arrow C++ (so pyarrow) ignores their min and max.
+
+## What pq-glue does
+
+After parquet-rs writes the output's footer, pq-glue rewrites its `column_orders` list to the inputs' orders. In Thrift's compact encoding each entry is 3 bytes either way (`1C 00 00` for the type-defined order, `2C 00 00` for IEEE 754), so the rewrite changes no offsets or lengths.
+
+The rewrite is checked:
+
+- the list must be the footer's last field, with one entry per leaf column, each one of the two known encodings, or the output is rejected and deleted;
+- after the rewrite the footer is read back, and its column orders must equal the inputs'.
+
+Inputs written without column orders (by writers older than parquet-format 2.4) get the type-defined order, which is how readers interpret such files.
+
+The tests check every column chunk's statistics in the output against its source's, as pyarrow reads them, with NaN, -0.0, +0.0 and infinities in the float columns.
+
+# Column encodings
+
+Since 0.3.0, `write_parquet` takes a `column_encoding` option. It writes named leaf columns in an encoding of your choice, with no dictionary. The values read back are the same: only the bytes in the file change. This page explains when that is worth doing, using the case it was added for: the `statement_id` column of Wikidata's claims. The option's full list of encodings and the types each takes are in the API reference.
+
+## How strings are stored by default
+
+The "native" and "parallel" engines give a column a dictionary unless its sampled values are more than three quarters distinct (`adaptive_dictionary`); the "pyarrow" engine gives every column one. A column of unique strings, such as one holding an identifier per row, is written `PLAIN` by the native engines: each value as a 4-byte length followed by its bytes. Compression (zstd by default) then works on those bytes, a page at a time.
+
+## How DELTA\_BYTE\_ARRAY stores them
+
+`DELTA_BYTE_ARRAY`, also known as incremental or front coding, stores each value as two parts:
+
+- the length of the prefix it shares with the value before it;
+- the rest of the value, its suffix.
+
+The prefix lengths are stored as a run of small integers (`DELTA_BINARY_PACKED`). The suffixes are stored as `DELTA_LENGTH_BYTE_ARRAY`: their lengths packed the same way, then their bytes back to back. A reader rebuilds each value from the value before it.
+
+Four statement ids, two entities' worth, in the order they are written:
+
+| value | `PLAIN` stores | `DELTA_BYTE_ARRAY` stores (prefix length, suffix) |
+| --- | --- | --- |
+| `Q42$F078E5B3-F9A8-480E-B7AC-D97778CBBEF9` | 4 + 40 bytes | 0, `Q42$F078E5B3-F9A8-480E-B7AC-D97778CBBEF9` |
+| `Q42$8E3C9A76-0B25-4D1E-9F3A-2C61D5A0E7B4` | 4 + 40 bytes | 4, `8E3C9A76-0B25-4D1E-9F3A-2C61D5A0E7B4` |
+| `Q42$D1B5F2E0-7A4C-4B39-8E61-03F9C2A7D8E5` | 4 + 40 bytes | 4, `D1B5F2E0-7A4C-4B39-8E61-03F9C2A7D8E5` |
+| `Q43$1C7E4A92-3F05-4E8B-A2D6-9B0F8C3E5D71` | 4 + 40 bytes | 2, `3$1C7E4A92-3F05-4E8B-A2D6-9B0F8C3E5D71` |
+
+`Q42$` is stored once, not three times, and `Q43` shares `Q4` with the `Q42` before it. The saving is the shared prefixes, so it depends on the row order. The random part of each value is stored in full either way.
+
+## Why Wikidata's `statement_id` gains
+
+Every Wikidata statement has an id made of its entity's id, `$`, and a UUID. Three things make that column a good fit:
+
+- **Every value is unique,** so a dictionary can't help, and the column is written `PLAIN`.
+- **The files are sorted by entity id,** so an entity's statements are adjacent and share their `Q…$` prefix. Neighbouring entities' ids share most of their digits too.
+- **The prefix is a large share of the value.** The entity id and `$` are up to 11 of its 40–47 bytes, and compressing `PLAIN` pages finds only part of that repetition.
+
+## An example
+
+Statement ids shaped like Wikidata's, written both ways:
+
+```python
+import random
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pq_glue
+
+rng = random.Random(0)
+ids, statements = [], []
+for n in range(1, 20_001):
+    for _ in range(rng.randint(1, 6)):
+        u = f"{rng.getrandbits(128):032X}"
+        ids.append(f"Q{n}")
+        statements.append(f"Q{n}${u[:8]}-{u[8:12]}-{u[12:16]}-{u[16:20]}-{u[20:]}")
+claims = pa.table({"id": ids, "statement_id": statements})
+
+pq_glue.write_parquet(claims, "plain.parquet")
+pq_glue.write_parquet(
+    claims, "delta.parquet", column_encoding={"statement_id": "DELTA_BYTE_ARRAY"}
+)
+
+
+def column(path, name):
+    """A column's encodings, whether it has a dictionary, and its bytes in the file."""
+    meta = pq.ParquetFile(path).metadata
+    i = [meta.schema.column(j).path for j in range(meta.num_columns)].index(name)
+    chunks = [meta.row_group(r).column(i) for r in range(meta.num_row_groups)]
+    size = sum(c.total_compressed_size for c in chunks)
+    return chunks[0].encodings, chunks[0].has_dictionary_page, size
+```
+
+The `statement_id` column changes encoding, and the `id` column, which isn't named, keeps its dictionary:
+
+```pycon
+>>> column("plain.parquet", "statement_id")[:2]
+(('PLAIN', 'RLE'), False)
+>>> column("delta.parquet", "statement_id")[:2]
+(('RLE', 'DELTA_BYTE_ARRAY'), False)
+>>> column("delta.parquet", "id") == column("plain.parquet", "id")
+True
+```
+
+(`RLE` here encodes the column's definition levels, which record its nulls.)
+
+The column is smaller, and the file reads back with the same values and schema:
+
+```pycon
+>>> column("delta.parquet", "statement_id")[2] < column("plain.parquet", "statement_id")[2]
+True
+>>> pq.read_table("delta.parquet").equals(pq.read_table("plain.parquet"))
+True
+```
+
+Here the column is about 7% smaller.
+
+## When to consider it
+
+`DELTA_BYTE_ARRAY` suits string or binary columns that are:
+
+- mostly distinct, so they have no dictionary;
+- written in an order where each value shares a prefix with the one before: sorted keys, paths, URLs, hierarchical ids, timestamps as text.
+
+The other encodings `column_encoding` takes follow the same idea for other types: `DELTA_BINARY_PACKED` for sorted or slowly changing integers, `BYTE_STREAM_SPLIT` for floats.
+
+It may not help, or may make the column larger, when:
+
+- **neighbouring values share no prefix,** as with hashes or random ids. On Wikidata's claims, the reference and qualifier hashes (SHA-1 hex digests, often repeated) grew 7.7% and 10.7%;
+- **a dictionary does better,** as with a column of few distinct values. Wikidata's `id` column, with a few repeated values per entity, grew 10%;
+- **the rows are not in an order that groups shared prefixes.** The saving depends on the order the rows are written in;
+- **pages are tiny.** Each page carries its own delta blocks' headers. In pq-glue's tests, with content-defined chunks of 256–1,024 bytes, `statement_id` was larger in `DELTA_BYTE_ARRAY` (539 kB against 528 kB). At the default chunk sizes it is smaller.
+
+Measure it on your own data: write a file each way and compare the column's `total_compressed_size`, as the example does.
+
+## Trade-offs
+
+- **Smaller files, so fewer bytes to store, upload and download.** On a job bound by the network, those bytes can matter more than the writer's speed.
+- **CPU can move either way.** On Wikidata's claims, writing showed no change beyond noise. Reading the column on its own took 13–17% more CPU than reading its `PLAIN` pages.
+- **The physical bytes change, the logical data doesn't.** The values, Arrow schema, row groups and statistics read back the same in every engine. A file's checksum changes, though, so anything comparing files byte for byte will see a difference.
+- **Readers need the encoding.** `DELTA_BYTE_ARRAY` has been in the Parquet format since 2.0. pyarrow, Polars and arrow-rs read it, and DuckDB supports it; an old or minimal reader may not.
+- **`concat` keeps each input's encodings,** as it copies column chunks as bytes. Files written with and without the option glue together, and each row group keeps its own encoding.
+
+## Measured on Wikidata
+
+From [wikidata-pq's journal](<https://github.com/lmmx/wikidata-pq/blob/master/docs/journal/2026-10-26-statement-id-encoding.md>) (lmmx/wikidata-pq\#184), which took up the option for the claims' `statement_id`.
+
+**Measured,** on a sample of 1,175,112 claims rows, written as the pipeline writes them:
+
+|  | before | `statement_id` in `DELTA_BYTE_ARRAY` | change |
+| --- | --- | --- | --- |
+| group files: `statement_id` | 25.40 MB | 23.44 MB | −7.7% |
+| group files: claims files | 73.14 MB | 71.18 MB | −2.7% |
+| published files: `statement_id` | 27.14 MB | 24.03 MB | −11.4% |
+| published files: claims files | 74.40 MB | 71.29 MB | −4.2% |
+
+Every variant's values read back equal to the input's.
+
+**Modelled,** by wikidata-pq's benchmark, scaling the sample's bytes up to a full release. These are projections, not measurements:
+
+- **published files:** 128.9 → 124.6 GB a release;
+- **the release's upload at 7 MB/s:** about 16 minutes shorter, the median of six paired rounds. A later run on the released packages modelled 13 minutes.
+- **at 30 MB/s and above:** the saving is within the benchmark's noise.
+
+Choosing the right representation for one column saved more time than making the writer faster would have.
+
+# Get started
+
+# Installation
+
+## Python
+
+pq-glue needs Python 3.10 or later. It has no Python dependencies.
+
+```sh
+pip install pq-glue
+```
+
+or with uv:
+
+```sh
+uv add pq-glue
+```
+
+Wheels are built for Linux (x86\_64, aarch64, armv7), macOS (x86\_64, arm64) and Windows (x64). Each wheel uses the stable ABI (abi3), so one wheel covers every Python version from 3.10.
+
+## Rust
+
+```sh
+cargo add pq-glue
+```
+
+The crate depends only on the `parquet` crate, with no compression codecs: it never decompresses a page.
+
+# Quickstart
+
+Write two files with the same schema:
+
+```python
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+schema = pa.schema([("id", pa.string()), ("tags", pa.list_(pa.string()))])
+pq.write_table(pa.table({"id": ["Q1", "Q2"], "tags": [["a"], []]}, schema=schema), "a.parquet")
+pq.write_table(pa.table({"id": ["Q3"], "tags": [None]}, schema=schema), "b.parquet")
+```
+
+Concatenate them. `concat` returns the number of rows written:
+
+```pycon
+>>> import pq_glue
+>>> pq_glue.concat(["a.parquet", "b.parquet"], "ab.parquet")
+3
+```
+
+The output has both files' rows, in order, and one row group per input row group:
+
+```pycon
+>>> pq.read_table("ab.parquet").to_pylist()
+[{'id': 'Q1', 'tags': ['a']}, {'id': 'Q2', 'tags': []}, {'id': 'Q3', 'tags': None}]
+>>> pq.ParquetFile("ab.parquet").metadata.num_row_groups
+2
+```
+
+Many concatenations can be done in one call: each job is a `concat`, with the same output, and the jobs run in parallel. `concat_many` returns each job's rows:
+
+```pycon
+>>> pq_glue.concat_many([(["a.parquet", "b.parquet"], "ab2.parquet"), (["b.parquet"], "b2.parquet")])
+[3, 1]
+>>> open("ab2.parquet", "rb").read() == open("ab.parquet", "rb").read()
+True
+```
+
+Files with different schemas are refused, and no output is written:
+
+```pycon
+>>> other = pa.table({"id": ["Q4"]})
+>>> pq.write_table(other, "c.parquet")
+>>> pq_glue.concat(["a.parquet", "c.parquet"], "ac.parquet")
+Traceback (most recent call last):
+  ...
+ValueError: c.parquet has other schema than a.parquet
+>>> import os
+>>> os.path.exists("ac.parquet")
+False
+```
+
+# Optional
+
+# History
+
+pq-glue's development is recorded in dated journal entries in [docs/journal/](<https://github.com/lmmx/pq-glue/tree/master/docs/journal>), written to the format in [docs/JOURNAL.md](<https://github.com/lmmx/pq-glue/blob/master/docs/JOURNAL.md>).
+
+| entry | what it records |
+| --- | --- |
+| [2026-10-23 row-group copy](<https://github.com/lmmx/pq-glue/blob/master/docs/journal/2026-10-23-row-group-copy.md>) | why pq-glue was written (wikidata-pq's group merge), the measurements, and the float statistics fix |
+
+# Development
+
+## Layout
+
+| path | contents |
+| --- | --- |
+| `src/` | the crate: `concat.rs`, `input.rs`, `footer.rs`, `error.rs`, and `python.rs` (the extension module, feature `python`) |
+| `tests/` | the Rust integration tests (`data.rs`, `metadata.rs`, `errors.rs`), their inputs written with arrow-rs |
+| `python/pq_glue/` | the Python package, and `_pq_glue.pyi`, the stub of the compiled module |
+| `python/tests/` | the Python tests, their inputs written with pyarrow |
+| `bench/` | the benchmarks, a project of their own |
+| `docs/site/` | this site; `docs/journal/` the development journal |
+
+## Building and testing
+
+The tools: a Rust toolchain, [uv](<https://docs.astral.sh/uv/>), [just](<https://just.systems/>), and for the lints taplo, whitespace-format and cargo-machete.
+
+```sh
+just py         # maturin develop, then pytest
+just test-ci    # cargo test and the doc tests
+just clippy     # clippy on every target and feature, warnings as errors
+just t          # ty, the type checker
+just pc         # formatting and lints (as pre-commit runs them)
+```
+
+## Commits
+
+Commit messages follow [Conventional Commits](<https://www.conventionalcommits.org/>) (`feat:`, `fix:`, `docs:`, `ci:` ...); the `conventional-pre-commit` hook checks them. `release-plz.toml` groups the changelog by these prefixes.
+
+# Documentation
+
+The site is built with [Zensical](<https://zensical.org/>) from `docs/site/` and `zensical.toml`. The Python API reference is generated by mkdocstrings from the package's docstrings and the compiled module's stub (`python/pq_glue/_pq_glue.pyi`).
+
+```sh
+just docs-serve   # build, serve and rebuild on change
+just docs-check   # strict build, site checks, and the pages' examples as tests
+```
+
+`docs/scripts/check_site.py` checks that every page is in the nav, that internal links and anchors resolve, that every page has a description matching its llms.txt entry, and that every public name is in the API reference. `docs/conftest.py` runs each page's Python examples with pytest (`pytest docs`); a `pycon` block's output must match.
+
+## Publishing
+
+`.github/workflows/site.yml` builds the site on every push to master and publishes it to the `gh-pages` branch, served at [https://lmmx.github.io/pq-glue/](<https://lmmx.github.io/pq-glue/>). A pull request from this repository gets a preview under `pr-preview/pr-<number>/`, linked from a comment on the pull request and removed when it closes. Previews start once the repository's Pages source is set to the `gh-pages` branch.
+
+# Releasing
+
+## PyPI
+
+Run the **Deploy Release** workflow (or `just release` locally). It:
+
+1. bumps the version in `pyproject.toml` with `uv version --bump patch` (or `minor`, `major`);
+2. sets the crate's version in `Cargo.toml` to match;
+3. commits `chore(release): bump 🐍 -> vX.Y.Z` and tags `py-X.Y.Z`;
+4. pushes the commit and the tag.
+
+The tag starts the **CI** workflow, which builds the wheels and the sdist and uploads them to PyPI with Trusted Publishing (the `pypi` environment). The repository needs a PyPI trusted publisher for `lmmx/pq-glue`, workflow `CI.yml`, environment `pypi`.
+
+## crates.io
+
+`just ship-rust` runs release-plz: it updates the version and changelog, commits `chore(release): 🦀 Upgrades`, pushes, and publishes the crate with a `pq-glue-vX.Y.Z` tag.
+
+# Reference
+
+# Reference
+
+| language | page |
+| --- | --- |
+| Python | [pq\_glue](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/reference/api/pq_glue/index.md>) |
+| Rust | [pq-glue](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/reference/rust/index.md>) |
+
+# pq\_glue
+
+For when to give `write_parquet` a `column_encoding`, and what it changes, see [Column encodings](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-encodings/index.md>).
+
+Glue Parquet files together, and write Arrow data to Parquet and read it back.
+
+`concat` copies encoded row groups without decoding them (`concat_many` for many concatenations at once); `write_parquet` writes Arrow data with a choice of engines; `read_parquet` reads a file's row groups in parallel.
+
+## \_\_version\_\_
+
+```python
+__version__: str
+```
+
+## concat
+
+```python
+concat(sources: Sequence[str | PathLike[str]], dst: str | PathLike[str]) -> int
+```
+
+Concatenate Parquet files that share one schema into one file.
+
+Each input's row groups are copied to `dst` as they are encoded (pages, dictionaries, statistics), in input order, without being decoded. The output has the first input's schema and key-value metadata, and the inputs' column orders, page indexes and bloom filters.
+
+Parameters:
+
+| Name | Type | Description | Default |
+| --- | --- | --- | --- |
+| `sources` | `Sequence[str \| PathLike[str]]` | The Parquet files to concatenate, in order. Each must have the first one's Parquet schema, key-value metadata and column orders. | *required* |
+| `dst` | `str \| PathLike[str]` | The file to write, created or truncated. It is removed if the copy fails part way, and must not be one of `sources`. | *required* |
+
+Returns:
+
+| Type | Description |
+| --- | --- |
+| `int` | The number of rows written. |
+
+Raises:
+
+| Type | Description |
+| --- | --- |
+| `ValueError` | If there are no sources, `dst` is one of them, a source is not a Parquet file, or the sources differ in schema, key-value metadata or column orders. |
+| `OSError` | If a source cannot be opened or `dst` cannot be written. |
+
+## concat\_many
+
+```python
+concat_many(
+    jobs: Sequence[tuple[Sequence[str | PathLike[str]], str | PathLike[str]]],
+) -> list[int]
+```
+
+Concatenate many sets of Parquet files at once, each into its own file.
+
+Each job, `(sources, dst)`, is a `concat(sources, dst)`, with the same output; the jobs run in parallel, on a thread per CPU, with the GIL released for the whole batch. For many small concatenations (each a few files), whose time goes on opening files and writing footers more than on bytes copied, one call is quicker than a `concat` per job.
+
+Parameters:
+
+| Name | Type | Description | Default |
+| --- | --- | --- | --- |
+| `jobs` | `Sequence[tuple[Sequence[str \| PathLike[str]], str \| PathLike[str]]]` | `(sources, dst)` tuples, as `concat` takes them. No two jobs may have the same `dst`, nor one job's `dst` be another's source. | *required* |
+
+Returns:
+
+| Type | Description |
+| --- | --- |
+| `list[int]` | The number of rows written for each job, in the jobs' order. |
+
+Raises:
+
+| Type | Description |
+| --- | --- |
+| `ValueError` | For the first job (in the jobs' order) that fails as `concat` raises ValueError, naming its `dst`. |
+| `OSError` | For the first job that fails as `concat` raises OSError, naming its `dst`. |
+
+> [!NOTE]
+>
+> **Notes**
+>
+> Every job runs, whether or not another fails: a job that fails leaves no `dst`, as `concat` leaves none, and the others' are written.
+
+## read\_parquet
+
+```python
+read_parquet(path: str | PathLike[str], row_groups: Sequence[int] | None = None)
+```
+
+Read a Parquet file to a `pyarrow.Table`, each row group decoded in parallel.
+
+The table has the file's Arrow schema (from its `ARROW:schema` metadata) and one chunk per row group read, in the order of `row_groups` (all of them, in order, if None). The values are those `pyarrow.parquet.ParquetFile.read` and `read_row_groups` give; the file is read into memory once, then decoded by arrow-rs on every core, without the GIL.
+
+Raises:
+
+| Type | Description |
+| --- | --- |
+| `ValueError` | If the file is not Parquet, or a row group asked for is not in it. |
+| `OSError` | If the file cannot be read. |
+
+## write\_parquet
+
+```python
+write_parquet(
+    data: object,
+    path: str | PathLike[str],
+    *,
+    engine: Engine = "parallel",
+    max_workers: int | None = None,
+    row_group_size: int | None = None,
+    compression: str = "zstd",
+    compression_level: int | None = None,
+    sorting_columns: Sequence[SortingColumn] | None = None,
+    content_defined_chunking: bool | Mapping[str, int] | None = None,
+    spec_names: bool = True,
+    adaptive_dictionary: bool | None = None,
+    column_encoding: Mapping[str, str] | None = None,
+) -> int
+```
+
+Write Arrow data to a Parquet file with the engine asked for; returns the rows written.
+
+Every engine writes the same values, in the same order, with the same Arrow schema, row groups, compression, sorting columns and content-defined chunking. Their bytes differ (page boundaries, dictionaries, the footer's `created_by` and format version): see the documentation's engines page. An option an engine lacks raises `ValueError`.
+
+Parameters:
+
+<table>       <thead>         <tr>           <th>Name</th>           <th>Type</th>           <th>Description</th>           <th>Default</th>         </tr>       </thead>       <tbody>           <tr class="doc-section-item">             <td>                 <code>data</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="object" optional="">object</autoref></code>             </td>             <td>               <div class="doc-md-description">                 <p>Any object with an <code>__arrow_c_stream__</code> method: a pyarrow table or record batch reader, a Polars data frame, ...</p>               </div>             </td>             <td>                 <em>required</em>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>path</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="str" optional="">str</autoref> | <autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" hover="" identifier="os.PathLike" optional="">PathLike</autoref>[<autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="str" optional="">str</autoref>]</code>             </td>             <td>               <div class="doc-md-description">                 <p>The file to write, created or truncated.</p>               </div>             </td>             <td>                 <em>required</em>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>engine</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" hover="" identifier="pq_glue._write.Engine" optional="">Engine</autoref></code>             </td>             <td>               <div class="doc-md-description">                 <ul> <li>&quot;native&quot;: arrow-rs, polars-genson's writer, on one thread.</li> <li>&quot;parallel&quot;: the same writer, on <code>max_workers</code> threads (by default one per   CPU): each row group's leaf columns in parallel, or, with content-defined   chunking, whole row groups in parallel, glued in order. The same bytes as   &quot;native&quot;, sooner, holding a row group in flight per thread.</li> <li>&quot;pyarrow&quot;: pyarrow's writer (pyarrow needed: <code>pq-glue[pyarrow]</code>), on one   thread, or with <code>max_workers</code> above 1 a row group per thread, glued in order.</li> </ul>               </div>             </td>             <td>                   <code>'parallel'</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>max_workers</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="int" optional="">int</autoref> | None</code>             </td>             <td>               <div class="doc-md-description">                 <p>Threads that encode at once; by default 1 for &quot;native&quot; and &quot;pyarrow&quot;, one per CPU for &quot;parallel&quot;.</p>               </div>             </td>             <td>                   <code>None</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>row_group_size</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="int" optional="">int</autoref> | None</code>             </td>             <td>               <div class="doc-md-description">                 <p>Rows per row group; 1,048,576 if None.</p>               </div>             </td>             <td>                   <code>None</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>compression</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="str" optional="">str</autoref></code>             </td>             <td>               <div class="doc-md-description">                 <p>&quot;zstd&quot; (the default), &quot;snappy&quot; or &quot;none&quot;.</p>               </div>             </td>             <td>                   <code>'zstd'</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>compression_level</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="int" optional="">int</autoref> | None</code>             </td>             <td>               <div class="doc-md-description">                 <p>The zstd level; 1 if None.</p>               </div>             </td>             <td>                   <code>None</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>sorting_columns</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" hover="" identifier="collections.abc.Sequence" optional="">Sequence</autoref>[<autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" hover="" identifier="pq_glue._write.SortingColumn" optional="">SortingColumn</autoref>] | None</code>             </td>             <td>               <div class="doc-md-description">                 <p>The sorting columns each row group declares: each a leaf column's path (<code>&quot;id&quot;</code>, <code>&quot;a.b&quot;</code>) or index, or a tuple of that, <code>descending</code> and <code>nulls_first</code>. The rows must already be in that order.</p>               </div>             </td>             <td>                   <code>None</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>content_defined_chunking</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="bool" optional="">bool</autoref> | <autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" hover="" identifier="collections.abc.Mapping" optional="">Mapping</autoref>[<autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="str" optional="">str</autoref>, <autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="int" optional="">int</autoref>] | None</code>             </td>             <td>               <div class="doc-md-description">                 <p>Content-defined chunking of data pages, for deduplicating storage: True for the defaults (256 KiB minimum, 1 MiB maximum chunk, normalisation level 0), or a dict of <code>min_chunk_size</code>, <code>max_chunk_size</code>, <code>norm_level</code>. Chunking starts afresh at each row group in every engine.</p>               </div>             </td>             <td>                   <code>None</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>spec_names</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="bool" optional="">bool</autoref></code>             </td>             <td>               <div class="doc-md-description">                 <p>List and map groups take the Parquet specification's names (<code>list</code>, <code>element</code>, <code>key_value</code>).</p>               </div>             </td>             <td>                   <code>True</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>adaptive_dictionary</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="bool" optional="">bool</autoref> | None</code>             </td>             <td>               <div class="doc-md-description">                 <p>(&quot;native&quot;, &quot;parallel&quot;) Leaf columns whose sampled values are more than three quarters distinct are not dictionary encoded; True if None. &quot;pyarrow&quot; encodes every leaf with a dictionary, and rejects True.</p>               </div>             </td>             <td>                   <code>None</code>             </td>           </tr>           <tr class="doc-section-item">             <td>                 <code>column_encoding</code>             </td>             <td>                   <code><autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" hover="" identifier="collections.abc.Mapping" optional="">Mapping</autoref>[<autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="str" optional="">str</autoref>, <autoref backlink-anchor="pq_glue.write_parquet" backlink-type="used-by" identifier="str" optional="">str</autoref>] | None</code>             </td>             <td>               <div class="doc-md-description">                 <p>Leaf columns written in an encoding of their own, with no dictionary: a dict of each leaf's path in the Parquet schema (<code>&quot;id&quot;</code>, <code>&quot;a.b&quot;</code>, <code>&quot;xs.list.element&quot;</code>) to its encoding's name, e.g. <code>{&quot;statement_id&quot;: &quot;DELTA_BYTE_ARRAY&quot;}</code> for strings that share a prefix with the value before. Only the file's bytes change: every engine reads back the same values, schema and statistics. The encodings: &quot;PLAIN&quot;, &quot;RLE&quot; (booleans), &quot;DELTA_BINARY_PACKED&quot; (32 and 64-bit integers), &quot;DELTA_LENGTH_BYTE_ARRAY&quot; (strings and binary), &quot;DELTA_BYTE_ARRAY&quot; (strings and binary, fixed-length too), &quot;BYTE_STREAM_SPLIT&quot; (floats, integers, fixed-length binary); &quot;native&quot; and &quot;parallel&quot; also take &quot;ALP&quot; (floats). A dictionary is <code>adaptive_dictionary</code>'s to decide. An unknown column, or an encoding its type does not take, raises <code>ValueError</code>.</p>               </div>             </td>             <td>                   <code>None</code>             </td>           </tr>       </tbody>     </table>
+
+Returns:
+
+| Type | Description |
+| --- | --- |
+| `int` | The number of rows written. |
+
+# pq-glue (Rust)
+
+The crate's API documentation is on [docs.rs](<https://docs.rs/pq-glue>).
+
+| item | what it is |
+| --- | --- |
+| `pq_glue::concat(inputs: &[PathBuf], output: &Path) -> Result<u64>` | concatenate the inputs into `output`, returning the rows written |
+| `pq_glue::concat_many(jobs: &[(Vec<PathBuf>, PathBuf)]) -> Vec<Result<u64>>` | each job's inputs concatenated into its output, as `concat` does, the jobs in parallel on rayon (feature `parallel`) |
+| `pq_glue::Error` | the errors `concat` returns: `NoInputs`, `OutputIsInput`, `Incompatible`, `Io`, `Parquet`, `Footer` |
+| `pq_glue::footer::restore_column_orders` | rewrite a file's footer column orders in place |
+
+```rust
+use std::path::{Path, PathBuf};
+
+fn main() -> pq_glue::Result<()> {
+    let inputs = [PathBuf::from("a.parquet"), PathBuf::from("b.parquet")];
+    let rows = pq_glue::concat(&inputs, Path::new("ab.parquet"))?;
+    println!("{rows} rows");
+    Ok(())
+}
+```
+
+The `parallel` feature adds `concat_many` (and rayon). The `python` feature builds the Python extension module; it is only for maturin.
+
+# Start here
+
+# pq-glue
+
+Concatenate Parquet files without decoding them.
+
+pq-glue copies the row groups of several Parquet files into one new file. Each column chunk is copied as bytes: it is not decompressed, decoded or re-encoded. The time it takes depends on the number of bytes copied, not on the number of columns or how deeply they are nested.
+
+```pycon
+>>> import pq_glue
+>>> pq_glue.concat(["part-0.parquet", "part-1.parquet"], "claims.parquet")
+3
+>>> import pyarrow.parquet as pq
+>>> pq.read_table("claims.parquet").column("id").to_pylist()
+['Q1', 'Q2', 'Q3']
+>>> pq.ParquetFile("claims.parquet").metadata.num_row_groups
+2
+```
+
+- `concat` returns the number of rows written.
+- The output has each input's row groups, in input order: here one from each file.
+- The inputs must have one Parquet schema. Files that differ are refused, and nothing is written.
+
+## Where to go
+
+- [Quickstart](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/getting-started/quickstart/index.md>): write two files, concatenate them, and see what is refused.
+- [What is copied](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/copying/index.md>): every part of the output file, and where it comes from.
+- [Column orders](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-orders/index.md>): why the copied float statistics need a change to the footer, and how pq-glue makes it.
+- [Column encodings](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/concepts/column-encodings/index.md>): when to write a column in an encoding of its own, such as `DELTA_BYTE_ARRAY` for sorted ids, and what it saved on Wikidata's claims.
+- [Benchmarks](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/benchmarks/index.md>): pq-glue against Polars and pyarrow, on generated files and on Wikidata claims.
+
+## Install
+
+```sh
+pip install pq-glue
+```
+
+```sh
+cargo add pq-glue
+```
+
+The Python package needs Python 3.10 or later and has no Python dependencies.
+
+## Contents of the output file
+
+| part of the file | in the output |
+| --- | --- |
+| column chunks | copied as bytes: the same pages, encodings and compression |
+| statistics | each row group's min, max and null counts, readable by pyarrow |
+| page indexes, bloom filters | copied where the inputs have them |
+| schema | the first input's Parquet schema and `ARROW:schema` |
+| column orders | the inputs', so float statistics stay valid |
+
+## Performance
+
+On the claims of 66 Wikidata chunks (555 MB, 9.4 million rows, 93 nested leaf columns), `concat` took 1.1 to 1.5 s and 0.6 s of CPU. Polars took 61 s (238 s of CPU) and pyarrow 56 s. The [benchmarks](<https://lmmx.github.io/pq-glue/pr-preview/pr-16/benchmarks/index.md>) page has the full figures and how to reproduce them.
