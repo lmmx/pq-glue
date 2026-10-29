@@ -96,7 +96,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run the examples in the pages
         run: uv run -p 3.13 --group test pytest docs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: site
           path: site
